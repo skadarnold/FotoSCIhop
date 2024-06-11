@@ -1,0 +1,51 @@
+# Project: FotoSCIhop
+# Makefile created by Dev-C++ 4.9.9.9
+
+CPP      = g++.exe
+CC       = gcc.exe
+WINDRES  = windres.exe
+RES      = 
+OBJ      = FotoSCIhop.o list.o p56files.o palette.o scicell.o sciloop.o stdafx.o v56files.o $(RES)
+LINKOBJ  = FotoSCIhop.o list.o p56files.o palette.o scicell.o sciloop.o stdafx.o v56files.o $(RES)
+LIBS     = -L"C:/Program Files/Dev-Cpp/lib" -L"C:/Program Files/Dev-Cpp/lib/gcc" -static-libstdc++ -static-libgcc -mwindows  
+INCS     = -I"C:/Program Files/Dev-Cpp/include" 
+CXXINCS  = -I"C:/Program Files/Dev-Cpp/include"  -I"C:/Program Files/Dev-Cpp/include/ddk"  -I"C:/Program Files/Dev-Cpp/include/gdiplus"  -I"C:/Program Files/Dev-Cpp/include/GL" 
+BIN      = FotoSCIhop.exe
+CXXFLAGS = $(CXXINCS)  
+CFLAGS   = $(INCS)  
+RM       = rm -f
+
+.PHONY: all all-before all-after clean clean-custom
+
+all: all-before FotoSCIhop.exe all-after
+
+
+clean: clean-custom
+	${RM} $(OBJ) $(BIN)
+
+$(BIN): $(OBJ)
+	$(CPP) $(LINKOBJ) -o "FotoSCIhop.exe" $(LIBS)
+
+FotoSCIhop.o: FotoSCIhop.cpp
+	$(CPP) -c FotoSCIhop.cpp -o FotoSCIhop.o $(CXXFLAGS)
+
+list.o: list.cpp
+	$(CPP) -c list.cpp -o list.o $(CXXFLAGS)
+
+p56files.o: p56files.cpp
+	$(CPP) -c p56files.cpp -o p56files.o $(CXXFLAGS)
+
+palette.o: palette.cpp
+	$(CPP) -c palette.cpp -o palette.o $(CXXFLAGS)
+
+scicell.o: scicell.cpp
+	$(CPP) -c scicell.cpp -o scicell.o $(CXXFLAGS)
+
+sciloop.o: sciloop.cpp
+	$(CPP) -c sciloop.cpp -o sciloop.o $(CXXFLAGS)
+
+stdafx.o: stdafx.cpp
+	$(CPP) -c stdafx.cpp -o stdafx.o $(CXXFLAGS)
+
+v56files.o: v56files.cpp
+	$(CPP) -c v56files.cpp -o v56files.o $(CXXFLAGS)

@@ -1,0 +1,337 @@
+// Microsoft Visual C++ generated resource script.
+//
+#include "resource.h"
+
+#define APSTUDIO_READONLY_SYMBOLS
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 2 resource.
+//
+#define APSTUDIO_HIDDEN_SYMBOLS
+#include "windows.h"
+#undef APSTUDIO_HIDDEN_SYMBOLS
+
+/////////////////////////////////////////////////////////////////////////////
+#undef APSTUDIO_READONLY_SYMBOLS
+
+/////////////////////////////////////////////////////////////////////////////
+// English (U.S.) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
+#ifdef _WIN32
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+#pragma code_page(1252)
+#endif //_WIN32
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Dialog
+//
+
+IDD_DIALOGBAR DIALOGEX 0, 0, 330, 16
+STYLE DS_SETFONT | DS_FIXEDSYS | WS_CHILD
+FONT 8, "MS Shell Dlg", 0, 0, 0x0
+BEGIN
+    LTEXT           "SCIMunito Immagina 0.95",IDC_STATIC,4,4,91,8
+    LTEXT           "by Enrico Rolfi",IDC_STATIC,103,4,87,8
+    CONTROL         "",IDC_SPIN1,"msctls_updown32",UDS_ARROWKEYS | UDS_HORZ,
+                    244,1,15,14
+    CONTROL         "",IDC_SPIN2,"msctls_updown32",UDS_ARROWKEYS,259,1,12,14
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// DESIGNINFO
+//
+
+#ifdef APSTUDIO_INVOKED
+GUIDELINES DESIGNINFO 
+BEGIN
+    IDD_DIALOGBAR, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 323
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 9
+    END
+END
+#endif    // APSTUDIO_INVOKED
+
+#endif    // English (U.S.) resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+/////////////////////////////////////////////////////////////////////////////
+// Italian (Italy) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ITA)
+#ifdef _WIN32
+LANGUAGE LANG_ITALIAN, SUBLANG_ITALIAN
+#pragma code_page(1252)
+#endif //_WIN32
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Dialog
+//
+
+#if defined(APSTUDIO_INVOKED) || !defined(ITALIAN)
+IDD_ABOUTBOX DIALOGEX 22, 17, 230, 177
+STYLE DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_CAPTION | WS_SYSMENU
+CAPTION "About"
+FONT 8, "System", 0, 0, 0x0
+BEGIN
+    ICON            IDI_IMMAGINA,IDC_MYICON,14,9,20,20
+    LTEXT           "SCImunito Immagina v1.0",IDC_STATIC,49,10,119,8,
+                    SS_NOPREFIX
+    LTEXT           "Copyright © 2004-2005 by Enrico Rolfi",IDC_STATIC,49,20,
+                    143,8
+    DEFPUSHBUTTON   "OK",IDOK,191,11,30,11,WS_GROUP
+    LTEXT           "This program is shareware, it can be freely distributed only if provided with its original documentation and not for profit reasons.",
+                    IDC_STATIC,9,86,201,28
+    LTEXT           "This program is available on:\n   http://www.GabrielKnight2K.tk\n\nFor problems, ideas and other:\n   mailto:dego_drigo@excite.com",
+                    IDC_STATIC,10,38,190,44
+    LTEXT           "It can't be altered in any way without the authors's approval, who also frees himself from any liability of possible damages caused by the use of this program.",
+                    IDC_STATIC,9,112,204,28
+    LTEXT           "SCI is a trademark of Sierra On-Line and every legal right on games developed using such engine is hold by the latter company.  ",
+                    IDC_STATIC,9,145,204,29
+END
+#endif
+
+#if defined(APSTUDIO_INVOKED) || defined(ITALIAN)
+#if defined(APSTUDIO_INVOKED)
+IDD_ABOUTBOX$(ITALIAN) DIALOGEX 22, 17, 230, 182
+#else
+IDD_ABOUTBOX DIALOGEX 22, 17, 230, 182
+#endif
+STYLE DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_CAPTION | WS_SYSMENU
+CAPTION "About"
+FONT 8, "System", 0, 0, 0x0
+BEGIN
+    ICON            IDI_IMMAGINA,IDC_MYICON,14,9,20,20
+    LTEXT           "SCImunito Immagina v1.0",IDC_STATIC,49,10,119,8,
+                    SS_NOPREFIX
+    LTEXT           "Copyright © 2004-2005 by Enrico Rolfi",IDC_STATIC,49,20,
+                    143,8
+    DEFPUSHBUTTON   "OK",IDOK,191,11,30,11,WS_GROUP
+    LTEXT           "Questo programma è shareware, può essere liberamente distribuito solo se provvisto della documentazione originale e non per fini di lucro.",
+                    IDC_STATIC,9,86,201,28
+    LTEXT           "Questo programma è disponibile su:\n   http://www.GabrielKnight2K.tk\n\nPer problemi, idee e altro:\n   mailto:dego_drigo@excite.com",
+                    IDC_STATIC,10,38,190,44
+    LTEXT           "Non può essere modificato in alcun modo senza l'approvazione dell'autore, che inoltre si ritiene privo di ogni responsabilità su eventuali danni causati dall'utilizzo di questo programma.",
+                    IDC_STATIC,9,112,204,36
+    LTEXT           "SCI è un marchio registrato di Sierra On-Line e ogni diritto legale sui giochi sviluppati usando detta tecnologia sono detenuti dalla compagnia suddetta.  ",
+                    IDC_STATIC,9,150,204,29
+END
+#endif
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// DESIGNINFO
+//
+
+#ifdef APSTUDIO_INVOKED
+GUIDELINES DESIGNINFO 
+BEGIN
+    IDD_ABOUTBOX, DIALOG
+    BEGIN
+        BOTTOMMARGIN, 174
+    END
+END
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Icon
+//
+
+// Icon with lowest ID value placed first to ensure application icon
+// remains consistent on all systems.
+IDI_IMMAGINA            ICON                    "Paint.ico"
+IDI_SMALL               ICON                    "smpaint.ico"
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Menu
+//
+
+IDC_IMMAGINA MENU 
+BEGIN
+    POPUP "&File"
+    BEGIN
+        MENUITEM "&Carica...\tCtrl+O",          ID_CARICA
+        MENUITEM "Prossimo File\tCtrl+N",       ID_FILE_NEXTFILE, GRAYED
+        MENUITEM "&Salva",                      ID_SALVA, GRAYED
+        MENUITEM "S&alva come...\tCtrl+S",      ID_SALVACOME, GRAYED
+        MENUITEM SEPARATOR
+        MENUITEM "&Informazioni...",            IDM_ABOUT
+        MENUITEM "&Esci\tCtrl+Q",               IDM_EXIT
+    END
+    POPUP "Colori"
+    BEGIN
+        MENUITEM "Mostra Tavolozza",            ID_PALETTE, GRAYED
+        MENUITEM SEPARATOR
+        MENUITEM "Importa Colori...",           ID_COLORI_IMPORTACOLORI
+        , GRAYED
+        MENUITEM "Esporta Colori...",           ID_COLORI_ESPORTACOLORI
+        , GRAYED
+    END
+    POPUP "&Immagine"
+    BEGIN
+        MENUITEM "&Importa BMP...\tCtrl+I",     ID_IMPORTABMP, GRAYED
+        MENUITEM "&Esporta BMP...\tCtrl+E",     ID_ESPORTABMP, GRAYED
+        MENUITEM SEPARATOR
+        MENUITEM "&Proprietà",                  ID_PROPRIET, GRAYED
+        POPUP "Ingrandimento"
+        BEGIN
+            MENUITEM "Normale\tCtrl+1",             ID_INGRANDIMENTO_NORMALE
+            , CHECKED
+            MENUITEM "x2\tCtrl+2",                  ID_INGRANDIMENTO_X2
+            MENUITEM "x3\tCtrl+3",                  ID_INGRANDIMENTO_X3
+            MENUITEM "x4\tCtrl+4",                  ID_INGRANDIMENTO_X4
+        END
+        MENUITEM SEPARATOR
+        MENUITEM "Mostra Linee di Priorità",    ID_PRIORITYBARS, GRAYED
+    END
+    POPUP "&Vai"
+    BEGIN
+        MENUITEM "Cella &Precedente\t<-",       ID_CELLAPRECEDENTE, GRAYED
+        MENUITEM "Cella &Successiva\t->",       ID_CELLASUCCESSIVA, GRAYED
+        MENUITEM SEPARATOR
+        MENUITEM "&Ciclo Precedente\tFrecciaSu", ID_CICLOPRECEDENTE, GRAYED
+        MENUITEM "C&iclo Successivo\tFrecciaGiù", ID_CICLOSUCCESSIVO, GRAYED
+    END
+END
+
+IDC_IMMAGINA_ENG MENU 
+BEGIN
+    POPUP "&File"
+    BEGIN
+        MENUITEM "&Open...\tCtrl+O",            ID_CARICA
+        MENUITEM "Next File\tCtrl+N",           ID_FILE_NEXTFILE, GRAYED
+        MENUITEM "&Save",                       ID_SALVA, GRAYED
+        MENUITEM "S&ave as...\tCtrl+S",         ID_SALVACOME, GRAYED
+        MENUITEM SEPARATOR
+        MENUITEM "&About...",                   IDM_ABOUT
+        MENUITEM "&Quit\tCtrl+Q",               IDM_EXIT
+    END
+    POPUP "&Image"
+    BEGIN
+        MENUITEM "&Import BMP...\tCtrl+I",      ID_IMPORTABMP, GRAYED
+        MENUITEM "&Export BMP...\tCtrl+E",      ID_ESPORTABMP, GRAYED
+        MENUITEM SEPARATOR
+        MENUITEM "&Properties",                 ID_PROPRIET, GRAYED
+        POPUP "Magnification"
+        BEGIN
+            MENUITEM "Normal\tCtrl+1",              ID_INGRANDIMENTO_NORMALE
+            , CHECKED
+            MENUITEM "x2\tCtrl+2",                  ID_INGRANDIMENTO_X2
+            MENUITEM "x3\tCtrl+3",                  ID_INGRANDIMENTO_X3
+            MENUITEM "x4\tCtrl+4",                  ID_INGRANDIMENTO_X4
+        END
+        MENUITEM SEPARATOR
+        MENUITEM "Show Priority Bars",          32824, GRAYED
+    END
+    POPUP "&Go"
+    BEGIN
+        MENUITEM "&Previous Cell\t<-",          ID_CELLAPRECEDENTE, GRAYED
+        MENUITEM "&Next Cell\t->",              ID_CELLASUCCESSIVA, GRAYED
+        MENUITEM SEPARATOR
+        MENUITEM "P&revious Loop\tUpArrow",     ID_CICLOPRECEDENTE, GRAYED
+        MENUITEM "N&ext Loop\tDownArrow",       ID_CICLOSUCCESSIVO, GRAYED
+    END
+    POPUP "Colors"
+    BEGIN
+        MENUITEM "Show Table",                  ID_PALETTE, GRAYED
+        MENUITEM SEPARATOR
+        MENUITEM "Import Palette...",           ID_COLORI_IMPORTACOLORI
+        , GRAYED
+        MENUITEM "Export Palette...",           ID_COLORI_ESPORTACOLORI
+        , GRAYED
+    END
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Accelerator
+//
+
+IDC_IMMAGINA ACCELERATORS 
+BEGIN
+    "O",            ID_CARICA,              VIRTKEY, CONTROL, NOINVERT
+    VK_LEFT,        ID_CELLAPRECEDENTE,     VIRTKEY, NOINVERT
+    VK_RIGHT,       ID_CELLASUCCESSIVA,     VIRTKEY, NOINVERT
+    VK_UP,          ID_CICLOPRECEDENTE,     VIRTKEY, NOINVERT
+    VK_DOWN,        ID_CICLOSUCCESSIVO,     VIRTKEY, NOINVERT
+    "E",            ID_ESPORTABMP,          VIRTKEY, CONTROL, NOINVERT
+    "I",            ID_IMPORTABMP,          VIRTKEY, CONTROL, NOINVERT
+    "1",            ID_INGRANDIMENTO_NORMALE, VIRTKEY, CONTROL, NOINVERT
+    "2",            ID_INGRANDIMENTO_X2,    VIRTKEY, CONTROL, NOINVERT
+    "3",            ID_INGRANDIMENTO_X3,    VIRTKEY, CONTROL, NOINVERT
+    "4",            ID_INGRANDIMENTO_X4,    VIRTKEY, CONTROL, NOINVERT
+    "S",            ID_SALVACOME,           VIRTKEY, CONTROL, NOINVERT
+    "/",            IDM_ABOUT,              ASCII,  ALT, NOINVERT
+    "?",            IDM_ABOUT,              ASCII,  ALT, NOINVERT
+    "Q",            IDM_EXIT,               VIRTKEY, CONTROL, NOINVERT
+    "N",            ID_FILE_NEXTFILE,       VIRTKEY, CONTROL, NOINVERT
+END
+
+
+#ifdef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// TEXTINCLUDE
+//
+
+1 TEXTINCLUDE 
+BEGIN
+    "resource.h\0"
+END
+
+2 TEXTINCLUDE 
+BEGIN
+    "#define APSTUDIO_HIDDEN_SYMBOLS\r\n"
+    "#include ""windows.h""\r\n"
+    "#undef APSTUDIO_HIDDEN_SYMBOLS\r\n"
+    "\0"
+END
+
+3 TEXTINCLUDE 
+BEGIN
+    "\r\n"
+    "\0"
+END
+
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// String Table
+//
+
+STRINGTABLE 
+BEGIN
+    IDS_APP_TITLE           "Immagina"
+    IDC_IMMAGINA            "IMMAGINA"
+END
+
+#endif    // Italian (Italy) resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+
+#ifndef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 3 resource.
+//
+
+
+/////////////////////////////////////////////////////////////////////////////
+#endif    // not APSTUDIO_INVOKED
+

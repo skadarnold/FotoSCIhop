@@ -1,0 +1,12 @@
+.vs
+*.v56
+*.p56
+*.bmp
+*.jpg
+*.png
+*.gif
+*.o
+*.obj
+*.log
+*.tlog
+

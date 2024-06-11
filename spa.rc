@@ -1,0 +1,4 @@
+
+#define SPANISH
+
+#include "rsrc.rc"
