@@ -42,6 +42,8 @@
 #include "spanish.h"
 #endif //SPANISH
 
+#include "english.h"
+
 
 
 #endif //LANGUAGE_H

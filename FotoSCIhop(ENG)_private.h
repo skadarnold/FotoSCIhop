@@ -5,13 +5,13 @@
 #define FOTOSCIHOP(ENG)_PRIVATE_H
 
 /* VERSION DEFINITIONS */
-#define VER_STRING	"1.3.0.0"
+#define VER_STRING	"1.4.0.0"
 #define VER_MAJOR	1
-#define VER_MINOR	3
+#define VER_MINOR	4
 #define VER_RELEASE	0
 #define VER_BUILD	0
 #define COMPANY_NAME	"Enrico Rolfi"
-#define FILE_VERSION	"1.3"
+#define FILE_VERSION	"1.4.0.0"
 #define FILE_DESCRIPTION	"A program to translate SCI1.1/SCI32 games."
 #define INTERNAL_NAME	"FotoSCIhop"
 #define LEGAL_COPYRIGHT	"Enrico Rolfi (Endroz), 2004-2021."

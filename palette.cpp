@@ -1,5 +1,6 @@
 /*	FotoSCIhop - Sierra SCI1.1/SCI32 games translator
  *  Copyright (C) Enrico Rolfi 'Endroz', 2004-2021.
+ *  Copyright (C) Daniel Arnold 'Dhel', 2022-2024.
  *
  *  This class represents a SCI palette
  *
@@ -9,13 +10,10 @@
 
 #include "palette.h"
 
-#define PALPATCH80    0x008B
-#define PALPATCH      0x000B
-
 PalEntry *Palette::GetPalEntry(unsigned short which)
 {
 	if (which < 256)
-		return &_palData[which];
+		return &palData[which];
 
 	return 0;
 }
@@ -23,14 +21,14 @@ bool Palette::SetPalEntry(PalEntry value, unsigned short which)
 {
 	if (which < 256)
 	{
-		_palData[which] = value;
+		palData[which] = value;
 
-		if (which < _firstColor)
+		if (which < Head.startOffset)
 		{
-			_numColors += (_firstColor-which);
-			_firstColor = which;
-		} else if (which > _firstColor+_numColors)
-			_numColors = which-_firstColor;
+			Head.nColors += (Head.startOffset-which);
+			Head.startOffset = which;
+		} else if (which > Head.startOffset+Head.nColors)
+			Head.nColors = which-Head.startOffset;
 
 		return true;
 	}
@@ -41,119 +39,93 @@ bool Palette::SetPalEntry(PalEntry value, unsigned short which)
 
 bool Palette::loadPalette(FILE *cfilebuf, unsigned long palsize)
 {
-	if (cfilebuf)
-	{
-		unsigned short tcheck=0;
-		fread(&tcheck, 2, 1, cfilebuf);
-
-        PalHeader head;
-                
-		if ((tcheck != PALPATCH80) && (tcheck != PALPATCH))
+    // Check if the file buffer is valid
+    if (cfilebuf)
+    {
+        // Read the first 2 bytes of the file buffer
+        unsigned short tcheck=0;
+        fread(&tcheck, 2, 1, cfilebuf);     
+        
+        // Check the value of tcheck, if it is not PALPATCH80 or PALPATCH
+        // then set the file pointer back by 2 bytes and read the header
+        if ((tcheck != PALPATCH80) && (tcheck != PALPATCH))
         {
             fseek(cfilebuf, -2, SEEK_CUR);
-            fread(&head, PalHeaderSIZE,1,cfilebuf);
-                      
-            if ((head.dataLength + 15) != palsize)    
-                return false;             
+            //fread(&head, PalHeaderSIZE,1,cfilebuf);
+
+			fread(&Head, COMPPALSIZE,1,cfilebuf);
+            
+            // Check if the data length plus 15 is equal to the size of the palette
+            // If not, return false
+			// Dhel - not sure what this is used for, but using it now breaks p56 importing of different size images.
+            // if ((Head.reserved + 15) != palsize)    
+            //    return false;             
         }
         else
-            fread(&head, PalHeaderSIZE,1,cfilebuf);
+            fread(&Head, COMPPALSIZE,1,cfilebuf);
         
-			
-		void *data = 0;
+        // Allocate memory for the data based on the tripleColor value in the header
+        void *data = 0;
+        if (Head.type)
+        {
+            data = new PalEntryOld[Head.nColors];
+            fread(data, PalEntryOldSIZE,Head.nColors,cfilebuf);
+        }
+        else
+        {
+            data = new PalEntry[Head.nColors];
+            fread(data, PalEntrySIZE,Head.nColors,cfilebuf);
+        }
 
-		if (head.tripleColor)
-		{
-			data = new PalEntryOld[head.numColors];
-			fread(data, PalEntryOldSIZE,head.numColors,cfilebuf);
-		}
-		else
-		{
-			data = new PalEntry[head.numColors];
-			fread(data, PalEntrySIZE,head.numColors,cfilebuf);
-		}
-
-		_palID=head.palID;
-		_firstColor = head.firstColor;
-		_numColors = head.numColors;
-
-		_hasFourEntries = (bool) (head.tripleColor==0);
-		_exfourColor = head.exfourColor;
-	
-		for (int i=0; i<11; i++)
-			_unkBytes1[i] = head.unkBytes1[i];
-		for (int i=0; i<10; i++)
-			_unkBytes2[i] = head.unkBytes2[i]; 
-
-		_unkShort = head.unkShort;
-		_unkLong = head.unkLong;
-
-		if (_hasFourEntries)
-			for (int i=0; i<_numColors; i++)
-				_palData[i+_firstColor] = ((PalEntry *)data)[i];
+		// Copy the data to the palData array based on the value of (bool)(Head.type == 0)
+		if (!Head.type)
+			for (int i = 0; i < Head.nColors; i++)
+				palData[i + Head.startOffset] = ((PalEntry *)data)[i];
 		else
 		{
 			PalEntryOld tpalold;
-			for (int i=0; i<_numColors; i++)
-			{	
+			for (int i = 0; i < Head.nColors; i++)
+			{
 				tpalold = ((PalEntryOld *)data)[i];
-				_palData[i+_firstColor].red=tpalold.red;
-				_palData[i+_firstColor].green=tpalold.green;
-				_palData[i+_firstColor].blue=tpalold.blue;
-				_palData[i+_firstColor].remap=0;
+				palData[i + Head.startOffset].red = tpalold.red;
+				palData[i + Head.startOffset].green = tpalold.green;
+				palData[i + Head.startOffset].blue = tpalold.blue;
+				palData[i + Head.startOffset].remap = 0;
 			}
 		}
-                                    
-        _hasPalette = true;
-	
+
+		// set the _hasPalette variable to true indicating that a palette has been loaded
+		//_hasPalette = true;
+		// Return true indicating that the function has executed successfully
 		return true;
 	}
+	// Return false if the file buffer is invalid
 	return false;
 }
 
 void Palette::WritePalette(FILE *cfb, bool writesciheader)
 {
-	if (cfb && _hasPalette)
+	if (cfb && palData)
 	{
 				
-		unsigned long tsize = PalHeaderSIZE + (_numColors * (_hasFourEntries ?4 :3));
+		unsigned long tsize = COMPPALSIZE + (Head.nColors * (!Head.type ?4 :3));
 
 		unsigned short ttag = PALPATCH80;
 		if (writesciheader)
 			fwrite(&ttag, 2,1,cfb);
 		else
 		{
-			ttag = 0x0300;
+			ttag = PALETTE_POS;
 			fwrite(&ttag, 2,1,cfb);
 			fwrite(&tsize, 4,1,cfb);
 		}
 
-		PalHeader tph;
-
-		tph.palID=_palID; 
-
-		for (int i=0; i<11; i++)
-			tph.unkBytes1[i] = _unkBytes1[i];
-
-		tph.dataLength=(unsigned short)tsize-15;
-
-		for (int i=0; i<10; i++)
-			tph.unkBytes2[i] = _unkBytes2[i]; 
-
-		tph.firstColor=_firstColor;
-		tph.unkShort=_unkShort;
-		tph.numColors=_numColors;
-		tph.exfourColor=_exfourColor;
-		tph.tripleColor=!_hasFourEntries;
-		tph.unkLong=_unkLong;
-
-
-		fwrite(&tph, PalHeaderSIZE, 1, cfb);
-		for (int i=0;i<_numColors;i++)
-			if (_hasFourEntries)
-				fwrite(&(_palData[i+_firstColor]), PalEntrySIZE, 1, cfb);
+		fwrite(&Head, COMPPALSIZE, 1, cfb);
+		for (int i=0;i<Head.nColors;i++)
+			if (!Head.type)
+				fwrite(&(palData[i+Head.startOffset]), PalEntrySIZE, 1, cfb);
 			else
-				fwrite(((char*)&(_palData[i+_firstColor]))+1, PalEntryOldSIZE, 1, cfb);
+				fwrite(((char*)&(palData[i+Head.startOffset]))+1, PalEntryOldSIZE, 1, cfb);
 	
 	}
 

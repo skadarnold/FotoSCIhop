@@ -1,5 +1,6 @@
 /*	FotoSCIhop - Sierra SCI1.1/SCI32 games translator
  *  Copyright (C) Enrico Rolfi 'Endroz', 2004-2021.
+ *  Copyright (C) Daniel Arnold 'Dhel', 2022-2024.
  *
  *  This class represents a SCI Cell from a P56/V56 file
  *
@@ -10,78 +11,86 @@
 #include "p56files.h"
 //#include "palette.h"
 
+// Dhel
+#include "v56files.h"
+
 void Cell::makeSCI()
 {	
-	if (_cached && _cachedHeader)
+	if (bmImage && bmInfo)
 	{
-		if (_image)
-			delete _image;
+		if ( cellImage->image)
+			delete cellImage->image;
 
-		_image = 0;
+		cellImage->image = 0;
 
-		if (_pack)
-			delete _pack;
+		if (cellImage->pack)
+			delete cellImage->pack;
 
-		_pack = 0;
+		cellImage->pack = 0;
 
-		bool hasLines = (_lines!=0);
+		bool hasLines = (cellImage->lines != 0);
 
 		if (hasLines)
-			delete _lines;
+			delete cellImage->lines;
 
-		_lines = 0; 
-		
-		_width = (unsigned short) _cachedHeader->bmiHeader.biWidth;
-		_height = (unsigned short) -_cachedHeader->bmiHeader.biHeight;
+		cellImage->lines = 0; 
 
-		_imageSize = _width*_height;
-		_packSize = 0;
+		unsigned short width = (unsigned short) bmInfo->bmiHeader.biWidth;
+		unsigned short height = (unsigned short) -bmInfo->bmiHeader.biHeight;
 
-	    _image = (unsigned char *) new char [_imageSize];
+		CelBase *bCell = new CelBase;
+		bCell = (CelBase *)&Head;
+
+		bCell->xDim = width;
+		bCell->yDim = height;
+
+		cellImage->imageSize = width*height;
+		cellImage->packSize = 0;
+
+	    cellImage->image = (unsigned char *) new char [cellImage->imageSize];
 
 
-		int dwremainder = _width%4;
+		int dwremainder = width%4;
 		if (dwremainder)
 			dwremainder = 4-dwremainder; //bmp requires DWORD align for each scanline
 
-		unsigned short bmpwidth = _width +dwremainder;
+		unsigned short bmpwidth = width +dwremainder;
 
-
-		if (!_compression)
-			for (unsigned short i=0; i<_height; i++)
-				for (unsigned short j=0; j<_width; j++)
-					_image[i*_width +j] = _cached[i*bmpwidth +j];
+		if (!bCell->compressType)
+			for (unsigned short i=0; i<height; i++)
+				for (unsigned short j=0; j<width; j++)
+					cellImage->image[i*width +j] = bmImage[i*bmpwidth +j];
 
 		else	//compressed
 		{
-			_pack = (unsigned char *) new char [_imageSize];
+			cellImage->pack = (unsigned char *) new char [cellImage->imageSize];
 			if (hasLines)
-				_lines = (unsigned char *) new char [_height*4*2];
+				cellImage->lines = (unsigned char *) new char [height*4*2];
 
 			unsigned short i=0;
 			unsigned short j=0, oldj=0;
 
-			unsigned char *ppack = _pack;
-			unsigned char *pimage = _image;
+			unsigned char *ppack = cellImage->pack;
+			unsigned char *pimage = cellImage->image;
 
 			unsigned long *ptaglines;
 			unsigned long *pdatalines;
 			if (hasLines)
 			{
-				ptaglines = (unsigned long *) _lines;
-				pdatalines = ((unsigned long *) _lines) +_height;		
+				ptaglines = (unsigned long *) cellImage->lines;
+				pdatalines = ((unsigned long *) cellImage->lines) +height;		
 			}
-			unsigned char *pcached = _cached;
+			unsigned char *pcached = bmImage;
 						
-			for (i=0; i<_height; i++)
+			for (i=0; i<height; i++)
 			{
 				j = 0;
-				pcached = _cached + (i*bmpwidth);
+				pcached = bmImage + (i*bmpwidth);
 
 				if (hasLines)
 				{
-					ptaglines[i]=(unsigned long)(pimage-_image);
-					pdatalines[i]=(unsigned long)(ppack-_pack);
+					ptaglines[i]=(unsigned long)(pimage - cellImage->image);
+					pdatalines[i]=(unsigned long)(ppack - cellImage->pack);
 				}
 
 				unsigned char b1, b2, b3, cont;
@@ -90,7 +99,7 @@ void Cell::makeSCI()
 			
 				do
 				{
-					if (_width-j>2)
+					if (width-j>2)
 					{
 						b1 = pcached[0];
 						b2 = pcached[1];
@@ -100,7 +109,7 @@ void Cell::makeSCI()
 							pcached +=1;
 							j+=1;
 							cont =1;
-							while ((j<_width) && (cont<0x3F))
+							while ((j<width) && (cont<0x3F))
 							{
 								b2=pcached[0];
 								if (b2!=b1)
@@ -130,7 +139,7 @@ void Cell::makeSCI()
 						{
 							cont =1;
 
-							while ((j+cont<_width-2) && (cont<0x3F)) //NOTE WAS 0x7F in Gabriel Knight, when scanlines are used, the max value allowed is 3F even here.
+							while ((j+cont<width-2) && (cont<0x3F)) //NOTE WAS 0x7F in Gabriel Knight, when scanlines are used, the max value allowed is 3F even here.
 							{                                        //TODO fix, perhaps adding a HasLines switch, because it's making the file bigger than the original
 								b1=b2;                               //NOTE a better optimization, could be to use the same algorithm of Sierra's original tool
 								b2=b3;
@@ -141,7 +150,7 @@ void Cell::makeSCI()
 								else
 									cont++;
 							}
-                            if ((j+cont==_width-2) && (cont<0x3E) && (b3!=b2)) //NOTE as in the upper note
+                            if ((j+cont==width-2) && (cont<0x3E) && (b3!=b2)) //NOTE as in the upper note
                                cont+=2;
 							
 							pimage[0]=cont;
@@ -156,9 +165,9 @@ void Cell::makeSCI()
 						}
 				
 					}
-					else		//_width-j <3
+					else		//width-j <3
 					{
-						cont =_width-j;
+						cont =width-j;
 						b1=pcached[0];
                         if (cont==2)
                            b2=pcached[1];
@@ -193,11 +202,11 @@ void Cell::makeSCI()
 						j+=cont;
 							
 					}
-				} while (j<_width);
+				} while (j<width);
 			}
 	
-			_packSize= (unsigned long) (ppack -_pack);
-			_imageSize = (unsigned long) (pimage -_image);
+			cellImage->packSize = (unsigned long) (ppack - cellImage->pack);
+			cellImage->imageSize = (unsigned long) (pimage - cellImage->image);
 			
 		}
 
@@ -207,16 +216,25 @@ void Cell::makeSCI()
 
 long Cell::makeBitmap()
 {
-	if (_cached)
-		delete _cached;
+	if (bmImage)
+		delete bmImage;
 
-	if (_cachedHeader)
-		delete _cachedHeader;
+	if (bmInfo)
+		delete bmInfo;
 
-	unsigned long imsize = _width*_height;
-	int dwremainder = _width%4;
+	unsigned long width;
+	unsigned long height;
+
+	CelBase *bCell = new CelBase;
+	bCell = (CelBase *)&Head;
+
+	width = bCell->xDim;
+	height = bCell->yDim;
+
+	unsigned long imsize = width*height;
+	int dwremainder = width%4;
 	if (dwremainder)
-		imsize+= _height*(4-dwremainder); //bmp requires DWORD align for each scanline
+		imsize+= height*(4-dwremainder); //bmp requires DWORD align for each scanline
 	unsigned char *initdata;
 
 	long tsizep = ((sizeof(BITMAPINFO)) + 256*(sizeof(RGBQUAD)));
@@ -228,18 +246,18 @@ long Cell::makeBitmap()
 	binfo->bmiHeader.biClrImportant=256;
 	binfo->bmiHeader.biClrUsed=256;//TODO ok?
 	binfo->bmiHeader.biCompression=BI_RGB;
-	binfo->bmiHeader.biHeight=-_height; //so that it will be a top-down DIB
+	binfo->bmiHeader.biHeight=-height; //so that it will be a top-down DIB
 	binfo->bmiHeader.biPlanes=1;
 	binfo->bmiHeader.biSize=sizeof(BITMAPINFOHEADER);//???
 	binfo->bmiHeader.biSizeImage=imsize;//was 0;
-	binfo->bmiHeader.biWidth=_width;
+	binfo->bmiHeader.biWidth=width;
 	binfo->bmiHeader.biXPelsPerMeter=0; //nu
 	binfo->bmiHeader.biYPelsPerMeter=0; //nu
 
 	RGBQUAD tquad;
 	for (int i=0; i<256; i++)
 	{
-		PalEntry *tpal =_palette->GetPalEntry(i);
+		PalEntry *tpal = palette->GetPalEntry(i);
         
 		if (tpal != NULL)
 		{
@@ -259,24 +277,23 @@ long Cell::makeBitmap()
 
 	}
 
-	
-	
-	if (_compression==0)
+
+	if (!bCell->compressType)
 	{
 		if (!dwremainder)
-			initdata =  _image;
+			initdata =  cellImage->image;
 		else
 		{
 			initdata = (unsigned char *) (new char[imsize]);
 			
-			unsigned char *pdata = _image;
+			unsigned char *pdata = cellImage->image;
 
 			unsigned char *pinit = initdata;
-			for (int i=0; i<_height; i++)
+			for (int i=0; i<height; i++)
 			{
-				memcpy(pinit, pdata, _width);
-				pinit += _width;
-				pdata += _width;
+				memcpy(pinit, pdata, width);
+				pinit += width;
+				pdata += width;
 				for (int j=0; j<4-dwremainder;j++)
 				{
 					pinit[0] = 0;
@@ -290,25 +307,25 @@ long Cell::makeBitmap()
 	{
 		initdata = (unsigned char *) (new char[imsize]);
 
-		unsigned char *ptags = _image;
-		unsigned char *pdata = _pack;
+		unsigned char *ptags = cellImage->image;
+		unsigned char *pdata = cellImage->pack;
 
 		unsigned char *pinit = initdata;
-  
-        unsigned long *plines = (unsigned long *)_lines;
+
+        unsigned long *plines = (unsigned long *)cellImage->lines;
 	
 		//TODO add position verification using scan lines!!
 		int i=0;
 		do
 		{
             
-            if (HasLines())
+            if (cellImage->lines)
 			{
                 //HWND thwnd = ((P56file32*)_parent)->MyHWnd();
-				if (plines[i] != (unsigned long)(ptags-_image))
+				if (plines[i] != (unsigned long)(ptags - cellImage->image))
                     MessageBox(hWnd, "Lines tags are wrong!", "Error",
                                 MB_OK | MB_ICONEXCLAMATION);
-				if (plines[i+_height] != (unsigned long)(pdata-_pack))
+				if (plines[i+height] != (unsigned long)(pdata - cellImage->pack))
                     MessageBox(hWnd, "Lines colors are wrong!", "Error",
                                 MB_OK | MB_ICONEXCLAMATION);
 		    }
@@ -351,7 +368,7 @@ long Cell::makeBitmap()
 
 				ptags++;
 			
-			} while (curwidth<_width);
+			} while (curwidth<width);
 			//TODO check the line here!!!
 
 			if (dwremainder) //if it can't be divided by 4
@@ -363,7 +380,7 @@ long Cell::makeBitmap()
 
 			i++;
 
-		} while (i<_height);
+		} while (i<height);
 		
 		//HWND thwnd = ((P56file32*)_parent)->MyHWnd();
 		if (imsize!=(long)(pinit-initdata))
@@ -376,190 +393,133 @@ long Cell::makeBitmap()
 
 
 //if (tbmap)
-	_cached = initdata;
-	_cachedHeader = binfo;
+	bmImage = initdata;
+	bmInfo = binfo;
 
 	return imsize;
 }
 
-
-void Cell::LoadCell(CellHeader *chead, unsigned char *im, unsigned char *pk, unsigned char *lin, bool isView, bool hasLinks)
+void Cell::loadImageOffset()
 {
-	if (_image)
-		delete _image;
-
-	_image = im;
-
-	if (_pack)
-		delete _pack;
-
-	_pack = pk;
-
-	if (_lines)
-		delete _lines;
-
-	_lines = lin;
-
-
-	_width = chead->width;
-	_height = chead->height;
-	_left = chead->xShift;
-	_top = chead->yShift;
-	_skipColor = chead->transparentClr;
-	_compression = chead->compression;      // 0 - none, 8A - rle
-	_flags = chead->flags;            // &0x80 -> &1 - UseSkip, &2 - remap_status
 	
-	if (isView)
-	{
-		_zDepth = 0;		 
-		_xPos = 0;
-		_yPos = 0;
-	}
+}
+
+
+void Cell::loadImage( FILE *cfilebuf, unsigned char offset )
+{
+	CellImage *sciImage = new CellImage;
+
+	sciImage->lines = 0;
+	sciImage->pack = 0;
+	sciImage->lines = 0;
+	sciImage->imageSize = 0;
+
+	CelBase *bCell = new CelBase;
+	bCell = (CelBase *)&Head;
+
+	if (!bCell->compressType)
+		// timsize = cells[i]->Head.pic.imageandPackSize;
+		// NOTE in certain files it is wrong, Sierra's tool writes this only on two bytes,
+		// but if the image is too big, it gets cut.
+		sciImage->imageSize = bCell->xDim * bCell->yDim;
 	else
 	{
-		_zDepth = chead->zDepth;
-		_xPos = chead->xPos;
-		_yPos = chead->yPos;
+		sciImage->imageSize = bCell->controlByteCount;
 	}
 
-	if (_compression)
+	fseek(cfilebuf, offset + bCell->controlOffset, SEEK_SET);
+
+	sciImage->image = (unsigned char *)new char[sciImage->imageSize];
+	fread(sciImage->image, sciImage->imageSize, 1, cfilebuf);
+
+	if (bCell->compressType)
 	{
-		_imageSize = chead->imageSize;
-		_packSize = chead->imageandPackSize-_imageSize;
+		fseek(cfilebuf, offset + bCell->colorOffset, SEEK_SET);
+		sciImage->packSize = bCell->dataByteCount - bCell->controlByteCount;
+		sciImage->pack = (unsigned char *)new char[sciImage->packSize];
+		fread(sciImage->pack, sciImage->packSize, 1, cfilebuf);
+
+		if (bCell->rowTableOffset)
+		{
+		fseek(cfilebuf, offset + bCell->rowTableOffset, SEEK_SET);
+		sciImage->lineSize = bCell->yDim * 4 * 2;
+		sciImage->lines = (unsigned char *)new char[sciImage->lineSize];
+		fread(sciImage->lines, sciImage->lineSize, 1, cfilebuf);
+		}
 	}
-	else
+
+	if (!bCell->compressType)
 	{
+
 		//_imageSize = chead->imageandPackSize;
-		//unreliable!!! it's better to calculate it again
-		_imageSize = chead->height*chead->width;
-		_packSize = 0;
+		// unreliable!!! it's better to calculate it again
+		
+		sciImage->imageSize = bCell->xDim * bCell->yDim;
+
+		sciImage->packSize = 0;
 	}
 
-    _hasLinks = hasLinks;       //added in v1.3
+	cellImage = sciImage;	
 }
-
-CellHeader Cell::RestoreCellHeader()
-{
-	CellHeader tch;
-
-	tch.compression=_compression;
-	tch.flags=_flags;
-	tch.height=_height;
-	tch.imageandPackSize=(_compression ?_imageSize+_packSize :_imageSize);
-	tch.imageOffs=0;
-	tch.imageSize=(_compression ?_imageSize: 0); //TODO CHECK DUNNO IF IT'S 0 or 6... in GK2 it's 0
-	tch.linesOffs=0;
-	tch.packDataOffs=0;
-	tch.paletteOffs=0;
-	tch.transparentClr=_skipColor;
-	tch.width=_width;
-	tch.xPos=_xPos;
-	tch.xShift=_left;
-	tch.yPos=_yPos;
-	tch.yShift=_top;
-	tch.zDepth=_zDepth;
-
-	return tch;
-
-
-}
-
-
-ViewCellHeader Cell::RestoreViewCellHeader()
-{
-	ViewCellHeader tch;
-
-	tch.compression=_compression;
-	tch.flags=_flags;
-	tch.height=_height;
-	tch.imageandPackSize=(_compression ?_imageSize+_packSize :_imageSize);
-	tch.imageOffs=0;
-	tch.imageSize=(_compression ?_imageSize: 0); //TODO CHECK DUNNO IF IT'S 0 or 6... in GK2 it's 0
-	tch.linesOffs=0;
-	tch.packDataOffs=0;
-	tch.paletteOffs=0;
-	tch.transparentClr=_skipColor;
-	tch.width=_width;
-	tch.xShift=_left;
-	tch.yShift=_top;
-	if (_hasLinks)
-	{
-     tch.linkTableOffs = 0;
-     tch.linkTableCount = _linksCount; 
-     memset(&(tch.unknown), 0, 10);  
-    }
-	
-	return tch;
-
-
-}
-
 	
 void Cell::WriteImage(FILE *cfb)
 {
 	if (cfb)
 	{
-		fwrite(_image, _imageSize, 1, cfb);
-		_changed = false;
+		fwrite(cellImage->image, cellImage->imageSize, 1, cfb);
+		changed = false;
 	}
 }
 
 void Cell::WritePack(FILE *cfb)
 {
+	CelBase *bCell = new CelBase;
+	bCell = (CelBase *)&Head;
+	
 	if (cfb)
 	{
-		if (_compression)
-			fwrite(_pack, _packSize, 1, cfb);
-
-
+		if (bCell->compressType)
+			fwrite(cellImage->pack, cellImage->packSize, 1, cfb);
 	}
 }
 
 void Cell::WriteScanLines(FILE *cfb)
 {
+	CelBase *bCell = new CelBase;
+	bCell = (CelBase *)&Head;
+
 	if (cfb)
 	{
-		if (_lines)
-			fwrite(_lines, _height*4*2, 1, cfb);
+		if (cellImage->lines)
+		{
 
-
+			fwrite(cellImage->lines, bCell->yDim *4*2, 1, cfb);
+		}
 	}
 }
-
-//ADDED in v 1.3 - Links
-bool Cell::getLinkPoint(unsigned char n, LinkPoint &lp) const
-{
-    if (n < _linksCount)
-    {
-        lp = _links[n]; 
-        return true;
-    }
-
-    return false;
-}        
-
 
 void Cell::ReadLinks(FILE *cfb)
 {
-	if (cfb && _hasLinks && _linksCount)
-	{
-		for (int i = 0; i<_linksCount; ++i)
-		{
-			fread(&(_links[i]), sizeof(LinkPoint), 1, cfb);
-        }
+	CelHeaderView *bCell = new CelHeaderView;
+	bCell = (CelHeaderView *)&Head;
 
+	if (cfb && bCell->linkTableCount)
+	{
+		for (int i = 0; i < bCell->linkTableCount; ++i)
+		{
+			fread(&(linkPoints[i]), sizeof(LinkPoint), 1, cfb);
+        }	
 	}
 }
 
-
-void Cell::WriteLinks(FILE *cfb) const
+void Cell::WriteLinks(FILE *cfb)
 {
-	if (cfb && _hasLinks && _linksCount)
-	{
-		for (int i = 0; i<_linksCount; ++i)
-		{
-			fwrite(&(_links[i]), sizeof(LinkPoint), 1, cfb);
-        }
+	CelHeaderView *bCell = new CelHeaderView;
+	bCell = (CelHeaderView *)&Head;
 
+	if (cfb && bCell->linkTableCount)
+	{
+		for (int i = 0; i < bCell->linkTableCount; ++i)
+				fwrite(&(linkPoints[i]), sizeof(LinkPoint), 1, cfb);
 	}
 }

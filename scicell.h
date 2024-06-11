@@ -1,5 +1,6 @@
 /*	FotoSCIhop - Sierra SCI1.1/SCI32 games translator
  *  Copyright (C) Enrico Rolfi 'Endroz', 2004-2021.
+ *  Copyright (C) Daniel Arnold 'Dhel', 2022-2024.
  *
  *  This class represents a single Cell from a SCI P56/V56 file
  *
@@ -11,197 +12,264 @@
 #include "stdafx.h"
 #include "palette.h"
 
-
-
 #pragma pack(1)
 
-struct CellHeader
+#define MAX_CELLS 512
+#define MAX_LOOPS 512
+
+struct CelBase
 {
-	short width;
-	short height;
-	short xShift;
-	short yShift;
-	char  transparentClr;   // Transparent color idx (Skip)
-	char  compression;      // 0 - none, 8A - rle
-	short flags;            // &0x80 -> &1 - UseSkip, &2 - remap_status
-							// Note: if hibit is clear, UseSkip must be rechecked for uncompr., set 4 compr
-	unsigned long imageandPackSize;      //Size of compressed image + size of pack image
-				//if uncompressed, size of image block only
-	unsigned long imageSize;       	//Size of compressed image
-				//if uncompressed, 0x06 (for some displacement matter, I believe)
-
-	unsigned long  paletteOffs;    //0x00000000		nu in later SCI
-							//IMPORTANT WHEN EDITING OR LOADING CHECK IF != 0
-						    //TODO check: in later SCI32, the palette is missing and the number here is strange
-						    //            GK2: x01 FF FF FF  and lighthouse: x01 00 00 00 .... what does it mean? check SCI source
-	unsigned long  imageOffs;        //Offset of Cell's image or pack data tags (if compressed)
-	unsigned long  packDataOffs;    //Offset of Pack data image 
-	unsigned long  linesOffs;     //Offset of Scan Lines Table (if compressed)
-	short zDepth; //-> -1000 - normal bg
-	short xPos;
-	short yPos;
-
+	UInt16 xDim;
+	UInt16 yDim;
+	Int16 xHot; //  0
+	Int16 yHot; //  0
+	uchar skip;
+	uchar compressType; //  Uncompressed
+	UInt16 dataFlags;
+	Int32 dataByteCount;	//  0
+	Int32 controlByteCount; //  0
+	Int32 paletteOffset;	//  Use later (0)
+	Int32 controlOffset;	//  0
+	Int32 colorOffset;		//  sizeof(CelHeader)
+	Int32 rowTableOffset;	//  0
 };
-#define CellHeaderSIZE (sizeof(CellHeader))
-#define CellHeaderSIZE_MIN (CellHeaderSIZE-6)
 
-struct ViewCellHeader
+struct CelHeader : public CelBase
 {
-	short width;
-	short height;
-	short xShift;
-	short yShift;
-	char  transparentClr;   // Transparent color idx (Skip)
-	char  compression;      // 0 - none, 8A - rle
-	short flags;            // &0x80 -> &1 - UseSkip, &2 - remap_status
-							// Note: if hibit is clear, UseSkip must be rechecked for uncompr., set 4 compr
-	unsigned long imageandPackSize;      //Size of compressed image + size of pack image
-				//if uncompressed, size of image block only
-	unsigned long imageSize;       	//Size of compressed image
-				//if uncompressed, 0x06 (for some displacement matter, I believe)
-
-	unsigned long  paletteOffs;    //0x00000000		nu in later SCI32
-							//IMPORTANT WHEN EDITING OR LOADING CHECK IF != 0
-	unsigned long  imageOffs;        //Offset of Cell's image or pack data tags (if compressed)
-	unsigned long  packDataOffs;    //Offset of Pack data image 
-	unsigned long  linesOffs;     //Offset of Scan Lines Table (if compressed)
-//Link stuff...only for most recent file version
-    unsigned long linkTableOffs;  //SCI source : Int32 linkTableOffset   
-    short linkTableCount;         //SCI source : Int16 linkTableCount 
-    unsigned char unknown[10];      //padding?   
-
-};
-#define ViewCellHeaderSIZE_MAX (sizeof(ViewCellHeader))
-#define ViewCellHeaderSIZE (_hasLinks ? ViewCellHeaderSIZE_MAX : ViewCellHeaderSIZE_MAX-16)
-
-union CELLS {
-	CellHeader newcell;
-	ViewCellHeader oldcell;
+	UInt16   xRes;
+	UInt16	yRes;
+	Int32    linkTableOffset;
+	UInt16   linkNumber;
 };
 
-
-//based from SCI source
-struct LinkPoint {
- short x;   
- short y;
- unsigned char positionType;
- char priority;
+struct CelHeaderPic : public CelBase
+{
+	Int16 priority;
+	Int16 xpos;
+	Int16 ypos;
 };
+
+struct CelHeaderView : public CelBase
+{
+	Int32 linkTableOffset;
+	Int16 linkTableCount;
+	uchar padding[10];
+};
+
+struct LoopHeader
+{
+	char 		altLoop;
+	uchar 	flags;
+	uchar 	numCels;
+	char		contLoop;
+	char		startCel;
+	char		endCel;
+	uchar 	repeatCount;
+	uchar 	stepSize;
+	Int32		paletteOffset;
+	Int32		celOffset;
+};
+const int LOOPHEADERSIZE = sizeof(LoopHeader);
+
+const int CELHEADERSIZE = sizeof(CelHeader);
+const int CELHEADERPICSIZE = sizeof(CelHeaderPic);
+const int CELHEADERVIEWSIZE = sizeof(CelHeaderView);
+const int CELHEADER11SIZE = sizeof(CelHeaderView) - 16;
+
+
+const uchar REPEATC = 0x80;
+const uchar REPSKIP = 0x40;
+const uchar PIC11CELLRECSIZE = 0x24;
+
+#define CELRECSIZE_NOLINKS 0x24
+#define CELRECSIZE_LINKS 0x34
+
+#define PIC11_IMAGE_POS 0x0401
+#define PIC11_VECTOR_POS 0x0500;
+
+#define PIC32_IMAGE_POS 0x0400;
+#define PIC32_LINES_POS 0x0500;
+
+#define VIEW32_IMAGE_POS 0x0400;
+#define VIEW32_LINES_POS 0x0500;
+#define VIEW32_LINKS_POS 0x0600;
+
+
+union CellHeader
+{
+	CelHeaderPic pic;
+	CelHeaderView view;
+};
+
+struct LinkPoint
+{
+	Int16 x;
+	Int16 y;
+	uchar positionType;
+	char priority;
+};
+
+struct CellImage
+{
+	unsigned char *image;
+	unsigned long imageSize;
+	unsigned char *pack;
+	unsigned long packSize;
+	unsigned char *lines;
+	unsigned long lineSize;
+};
+
+struct PicHeader11 {
+	UInt16	picHeaderSize; //+2 must be added!!!
+    uchar nPriorities;
+    uchar priLineCount;
+    uchar    celCount;	
+    uchar	dummy;			//SCI source: dummy
+    UInt16    vanishX; //0x00A0				//constant 160         SCI source: vanishX  ??
+    UInt16	 vanishY;	//0xd8f0		//constant -10000                  SCI source: vanishY  ??
+    UInt16	viewAngle;	//0x0046				//constant 70          SCI source: viewAngle  ??
+    UInt32    vectorSize;	
+    UInt32	 vectorOffset;		//Offset to the EoF character 0xFF
+  	UInt32	priCelOffset; //UnkLong1;		//00000000                    SCI source: priCelOffset
+   	UInt32	controlCelOffset; //UnkLong2;		//00000000                SCI source: controlCelOffset
+    UInt32	paletteOffset;	//another size but smaller this time
+    UInt32  visualHeaderOffset;		//start of cell rec(44 or 48)         SCI source: visualHeaderOffset
+    UInt32	polygonOffset; //UnkLong3;	//00000000                        SCI source: polygonOffset
+	UInt16 priLines[14]; //always 14 bars
+};
+const int PICHEADER11SIZE = sizeof(PicHeader11);
+
+struct PicHeader32
+{
+	UInt16	picHeaderSize;
+	uchar		celCount;
+	uchar		splitFlag;
+	UInt16	celHeaderSize;
+	UInt32	paletteOffset;
+	UInt16	resX;	//if Height==0 : 0-320x200, 1-640x480, 2-640x400
+	UInt16	resY;
+};
+const int PICHEADER32SIZE = sizeof(PicHeader32);
+
+struct ViewHeader32
+{
+	UInt16	viewHeaderSize;
+	uchar 	loopCount;
+	uchar 	stripView;
+	uchar 	splitView;
+	uchar 	resolution;	//0-320x200, 1-640x480, 2-640x400 
+	UInt16 	celCount;
+	UInt32	paletteOffset;
+	uchar 	loopHeaderSize;
+	uchar 	celHeaderSize;
+	UInt16	resX;	//if ResX==0 && ResY==0 - look at ViewSize  
+	UInt16	resY;
+};
+const int VIEW32_HEADER_SIZE = sizeof(ViewHeader32);
+
+struct ViewHeaderLinks : public ViewHeader32
+{
+	uchar	version;
+	uchar	futureExpansion;
+};
+const int VIEW32_HEADER_LINK_SIZE = sizeof(ViewHeaderLinks);
+
+union ViewHeader
+{
+	ViewHeader32 view32;
+	ViewHeaderLinks view32links;
+};
+
 
 
 #pragma pack()
 
-class Cell		//size 2A
+class Cell // size 2A
 {
-	unsigned short _width;
-	unsigned short _height;
-	short _left;
-	short _top;
+public:
+	Cell(void) : cellImage(new CellImage), 
+				bmInfo(new BITMAPINFO), bmImage(new unsigned char),
+				changed(false), palette(0)
+	{
+		cellImage->image = 0;
+		cellImage->imageSize = 0;
+		cellImage->pack = 0;
+		cellImage->packSize = 0;
+		cellImage->lines = 0;
+		cellImage->lineSize = 0;
 
-	unsigned char _skipColor;
-	unsigned char _compression; 
-	unsigned short _flags;
+	}
+
+	/*
+	// copy constructor
+	Cell(Cell& other)
+	{
+									changed = other.changed;
+									palette = other.palette;
+
+									bmInfo = new BITMAPINFO;
+									memcpy(bmInfo, other.bmInfo, sizeof(BITMAPINFO));
+
+									int imageSize = other.bmInfo->bmiHeader.biSizeImage;
+									bmImage = new unsigned char[imageSize];
+									memcpy(bmImage, other.bmImage, imageSize);
+
+									cellImage = new CellImage;
+									memcpy(cellImage, other.cellImage, sizeof(CellImage));
+
+									if (cellImage->image)
+									{
+										cellImage->image = new unsigned char;
+										memcpy(cellImage->image, other.cellImage->image, sizeof(other.cellImage->image));
+									}
+
+									if (cellImage->pack)
+									{
+										cellImage->pack = new unsigned char;
+										memcpy(cellImage->pack, other.cellImage->pack, sizeof(other.cellImage->pack));
+									}
+
+									if (cellImage->lines)
+									{
+										cellImage->lines = new unsigned char;
+										memcpy(cellImage->lines, other.cellImage->lines, sizeof(other.cellImage->lines));
+									}
+
+									memcpy(&Head, &other.Head, sizeof(CellHeader));
+									//memcpy(linkPoints, other.linkPoints, sizeof(linkPoints));
+	}
+	*/
 	
-	unsigned char *_image;
-	unsigned long _imageSize;
-	unsigned char *_pack;
-	unsigned long _packSize;
-	unsigned char *_lines;
 
-	BITMAPINFO *_cachedHeader;
-	unsigned char *_cached;
+	~Cell(void) { if (cellImage->image) delete[] cellImage->image; if (cellImage->pack) delete[] cellImage->pack;
+					if (cellImage->lines) delete[] cellImage->lines; 
+					if (bmImage && (cellImage->image != bmImage)) delete[] bmImage;
+					if (bmInfo) delete bmInfo;}
 
-	bool _changed;
-	//if set to true, the new image is the one referenced by _cached
+	bool changed;
+	//if set to true, the new image is the one referenced by bmImage
 	//that was the initial Idea, but now it is suddenly converted
 
-	short _zDepth;
-	unsigned short _xPos;
-	unsigned short _yPos;
- 
-    Palette *_palette;
-    
-    bool _hasLinks;         //added in v1.3
-    LinkPoint _links[10];
-	short _linksCount;
-	
-public:
-	Cell(void) : _image(0), _pack(0), _lines(0), _cached(0), _cachedHeader(0),
-                 _changed(false), _palette(0), _hasLinks(false), _linksCount(0) {}
-    ~Cell(void) { if (_image) delete _image; if (_pack) delete _pack;
-					if (_lines) delete _lines; 
-					if (_cached && (_image != _cached)) delete _cached;
-					if (_cachedHeader) delete _cachedHeader;}
+	Palette *palette;
 
-	unsigned short Width() const { return _width; }
-	void Width(unsigned short value) { _width = value; }
-	unsigned short Height() const { return _height; }
-	void Height(unsigned short value) { _height = value; }
-	short Left() const { return _left; }
-	void Left(short value) { _left = value; }
-	short Top() const { return _top; }
-	void Top(short value) { _top = value; }
-	
-	unsigned char SkipColor() const { return _skipColor; }
-	void SkipColor(unsigned char value) { _skipColor = value; }
-	
-	unsigned char Compression() const { return _compression; }
-	void Compression(unsigned char value) { _compression = value; }
-	
-	unsigned short Flags() const { return _flags; }
-	void Flags(unsigned short value) { _flags = value; }
+	void GetImage(BITMAPINFO **imhd, unsigned char **im) {  if (bmImage==0) makeBitmap();
+															*imhd=bmInfo;
+															*im=bmImage; }
 
-	void GetImage(BITMAPINFO **imhd, unsigned char **im) {  if (_cached==0) makeBitmap();
-															*imhd=_cachedHeader;
-															*im=_cached; }
-                                                            
-	void SetImage(BITMAPINFO *imhd, unsigned char *im) { if (_cached && (_image != _cached))
-														 	delete _cached;
-														 if (_cachedHeader)
-															delete _cachedHeader;
-														_cached = im; 
-														_cachedHeader = imhd;
-														_changed = true;
-														makeSCI(); }
+	void SetImage(BITMAPINFO *imhd, unsigned char *im)
+	{
+															bmImage = im;
+															bmInfo = imhd;
+															changed = true;
+															makeSCI();
+	}
 
 	long makeBitmap();	
 	void makeSCI();
 
-
-	short ZDepth() const { return _zDepth; }
-	void ZDepth(short value) { _zDepth = value; }
-
-	unsigned short XPos() const { return _xPos; }
-	void XPos(unsigned short value) { _xPos = value; }
-	unsigned short YPos() const { return _yPos; }
-	void YPos(unsigned short value) { _yPos = value; }
-
-	void LoadCell(CellHeader *chead, unsigned char *im, unsigned char *pk, unsigned char *lin, bool isView, bool hasLinks);
-
-	Palette **MyPalette() { return &_palette; }
-	void MyPalette(Palette **value) {
-									_palette = *value;
-									if (_cached && (_image != _cached))
-										delete _cached;
-									if (_cachedHeader)
-										delete _cachedHeader;
-
-										_cachedHeader = 0;
-										_cached=0;
+	void setPalette(Palette **value) {
+									palette = *value;
 									}
-
-	unsigned long ImageSize() const { return _imageSize; }
-	void ImageSize(unsigned long value) { _imageSize = value; }
-
-	unsigned long PackSize() const { return _packSize; }
-	void PackSize(unsigned long value) { _packSize = value; }
-
-	bool HasLines() const { return (_lines!=0); }
-
-	bool Changed() const { return _changed; }
-
-	ViewCellHeader RestoreViewCellHeader();
-	CellHeader RestoreCellHeader();
 
 	void WriteImage(FILE *cfb);
 	void WritePack(FILE *cfb);
@@ -209,15 +277,19 @@ public:
 	void WriteScanLines(FILE *cfb);
 
     void ReadLinks(FILE *cfb);
-    void WriteLinks(FILE *cfb) const;
+    void WriteLinks(FILE *cfb);
 
-    //void HasLinks(bool value) { _hasLinks = value; }
+	LinkPoint linkPoints[10];
+	void loadImage( FILE *cfilebuf, unsigned char offset );
+	void loadImageOffset (void);
+				
+	CellHeader Head;
+	CellImage *cellImage;
+	
+	unsigned char *bmImage;
+	BITMAPINFO *bmInfo;
 
-    bool getLinkPoint(unsigned char n, LinkPoint &lp) const; 
-
-    short LinksCount() const { return _linksCount; }
-    void LinksCount(short value) { _linksCount = value; }
-
+	bool isClone = false;
 };
 
 #endif

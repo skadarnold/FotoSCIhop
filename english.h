@@ -8,9 +8,9 @@
 #define INTERFACE_OPENFILEFILTER "SCI Image files (*.p56, *.v56)\0*.p56;*.v56\0SCI Picture files (*.p56)\0*.p56\0SCI View files (*.v56)\0*.v56\0All files (*.*)\0*.*\0\0"
 #define INTERFACE_SAVEFILEFILTERP56 "SCI Picture file (*.p56)\0*.p56\0\0"
 #define INTERFACE_SAVEFILEFILTERV56 "SCI View file (*.v56)\0*.v56\0\0"
-#define INTERFACE_BMPFILTER "Bitmap file (*.bmp)\0*.bmp\0All files (*.*)\0*.*\0\0"
+#define INTERFACE_BMPFILTER "Bitmap file (*.bmp)\0*.bmp\0Jpeg file (*.jpg)\0*.jpg\0Png files (*.png)\0*.png\0All files (*.*)\0*.*\0\0"
 #define INTERFACE_PALFILTER "SCI Palette file (*.pal)\0*.pal\0All files (*.*)\0*.*\0\0"
-#define INTERFACE_PALINFILTER "SCI Palette file (*.pal)\0*.pal\0Bitmap file (*.bmp)\0*.bmp\0\0"
+#define INTERFACE_PALINFILTER "Bitmap file (*.bmp)\0*.bmp\0SCI Palette file (*.pal)\0*.pal\0\0"
 
 #define INTERFACE_ABOUTTITLE "About"
 
@@ -19,11 +19,12 @@
 #define INTERFACE_P56CELLPROPSTR "\n%20c   -> Selected Cell %d%20c\n\nDimension: %d x %d\nPosition: %d,%d\nTransparent color: %d\nCompression: %d\nFlags: %X\nZ priority: %d\nxyPos: %d,%d\n"
 #define INTERFACE_NOTSTR "Not "
 #define INTERFACE_SEEVIEWRESSTR " (see View Resolution)"
-#define INTERFACE_PROPVIEWSTR "%20c   -> Global Stuff%20c\nLoops: %d\nStrip View: %d\n%sCompressed\nView Resolution: %s\nTotal Cells: %d\nLoop Record Size: %d\nCell Record Size: %d\nResolution: %s\n\n%20c   -> Selected Loop %d%20c\nCells: %d\nBased on Loop: %d\n%sMirrored\nCont. Loop.: %d\nStart Cell: %d\nEnd Cell: %d\nRepeat Count: %d\nStep Size: %d\n"
-#define INTERFACE_VIEWCELLPROPSTR "\n%20c   -> Selected Cell %d%20c\n\nSize: %d x %d\nPosition: %d,%d\nTransparent color: %d\nCompression: %d\nFlags: %X\n"
+#define INTERFACE_PROPVIEWSTR "%20c   -> Global Stuff%20c\nLoops: %d\nStrip View: %d\n%sCompressed\nView Resolution: %s\nTotal Cells: %d\nLoop Record Size: %d\nCell Record Size: %d\nResolution: %s\n\n"
+#define INTERFACE_VIEWLOOPPROPSTR "%20c   -> Selected Loop %d%20c\nCells: %d\nBased on Loop: %d\n%sMirrored\nCont. Loop.: %d\nStart Cell: %d\nEnd Cell: %d\nRepeat Count: %d\nStep Size: %d\n"
+#define INTERFACE_VIEWCELLPROPSTR "\n%20c   -> Selected Cell %d%20c\n\nSize: %d x %d\nPosition: %d,%d\nTransparent color: %d\nCompression: %d\nFlags: %X\n\n"
+#define INTERFACE_PROPTABLE propstr
 #define INTERFACE_VECTORSIZESTR "Vectors Size: "
 #define INTERFACE_PRIORITYSTR   "\nPriorities: %d\nPriority Lines Count: %d\n"
-#define INTERFACE_LINKCOUNTSTR  "Links Count: %d"
 
 #define INTERFACE_SKIPCOLORSTR "Transparent Color %d"
 #define INTERFACE_CELLSSTR "Cell %d of %d"
@@ -31,11 +32,16 @@
 #define INTERFACE_MIRROREDSTR "Mirrored version of Loop %d"
 
 #define INTERFACE_CHANGEFRAMESIZE "Change Cell Position..."
+#define INTERFACE_MODIFY_PROPERTIES "Modify Properties..."
 #define INTERFACE_CANCEL	"Cancel"
 #define INTERFACE_LEFT		"Left"
 #define INTERFACE_TOP		"Top"
 #define INTERFACE_WIDTH		"Width"
 #define INTERFACE_HEIGHT	"Height"
+#define INTERFACE_RESX		"Res X"
+#define INTERFACE_RESY		"Res Y"
+#define INTERFACE_POSX		"Pos X"
+#define INTERFACE_POSY		"Pos Y"
 
 #define INTERFACE_CHANGEDSTR "Changed"
 
@@ -68,8 +74,10 @@
 #define MENU_IMAGE "&Image"
 #define MENU_IMPORTBMP "&Import BMP...\tCtrl+I"
 #define MENU_EXPORTBMP "&Export BMP...\tCtrl+E"
-#define MENU_PROPERTIES "&Properties"
+#define MENU_INFO "&Info"
 #define MENU_CHANGEFRAMESIZE "&Change Cell Position..."
+#define MENU_PROPERTIES "&Properties..."
+#define MENU_LINKPOINTS "&Link Points..."
 
 #define MENU_MAGNIFICATION "Magnification"
 #define MENU_NORMAL "Normal\tCtrl+1"
@@ -97,7 +105,7 @@
 #define ERR_INVALIDCOMPBMP "This program can't read compressed Bitmap. Please save your image as uncompressed from your imaging program and try again."
 #define ERR_INVALIDSIZEBMP "The Bitmap file size is different from the expected value."
 #define WARN_DIFFERENTDIM "The selected image file has different dimensions compared to the original picture, and it might not be displayed correctly in the game. Continue anyway?"
-#define WARN_DIFFERENTPAL "The selected image has a different color table than the original one, but it might be adjusted with an unrecommended operation (also known as color-guessing). Do you want to perform it?"
+#define WARN_DIFFERENTPAL "The selected image has a different color table than the original one. Do you to import the palette from the incoming file?"
 #define ERR_DIFFERENTPALBIS "The selected image has a different color table than the original one. Please revert back to the original palette using your painting program."
 #define ERR_REMAPNOTIMPLEMENTEDYET "Remapping non yet implemented!!!!" 
 
@@ -122,7 +130,11 @@
 #define MANUAL_PATH "Manual\\instructions.html"
 
 //#define WIN_FILEDESCRIPTION "Program to translate SCI1.1/SCI32 games.\0"
-#define WIN_LEGALCOPYRIGHT "\251 Enrico Rolfi (Endroz), 2004-2021.\0"
+#define WIN_LEGALCOPYRIGHT "\251 Enrico Rolfi (Endroz), 2004-2021\nDhel, 2022\0"
 //#define WIN_LEGALTRADEMARKS "SCI (Sierra Creative Interpreter) is a registered trademark of Sierra On-Line, all rights reserved.\0"
+
+//Dhel
+#define MODIFY_PROPERTIES "Manual\\instructions.html"
+
 
 

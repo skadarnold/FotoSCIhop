@@ -9,4 +9,7 @@
 *.obj
 *.log
 *.tlog
-
+Immagina
+Debug
+Release
+x64

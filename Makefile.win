@@ -1,30 +1,29 @@
-# Project: FotoSCIhop
-# Makefile created by Dev-C++ 4.9.9.9
+# Project: FotoSCIhop(ENG)
+# Makefile created by Dev-C++ 5.11
 
 CPP      = g++.exe
 CC       = gcc.exe
 WINDRES  = windres.exe
-RES      = 
+RES      = FotoSCIhop(ENG)_private.res
 OBJ      = FotoSCIhop.o list.o p56files.o palette.o scicell.o sciloop.o stdafx.o v56files.o $(RES)
 LINKOBJ  = FotoSCIhop.o list.o p56files.o palette.o scicell.o sciloop.o stdafx.o v56files.o $(RES)
-LIBS     = -L"C:/Program Files/Dev-Cpp/lib" -L"C:/Program Files/Dev-Cpp/lib/gcc" -static-libstdc++ -static-libgcc -mwindows  
-INCS     = -I"C:/Program Files/Dev-Cpp/include" 
-CXXINCS  = -I"C:/Program Files/Dev-Cpp/include"  -I"C:/Program Files/Dev-Cpp/include/ddk"  -I"C:/Program Files/Dev-Cpp/include/gdiplus"  -I"C:/Program Files/Dev-Cpp/include/GL" 
-BIN      = FotoSCIhop.exe
-CXXFLAGS = $(CXXINCS)  
-CFLAGS   = $(INCS)  
-RM       = rm -f
+LIBS     = -L"C:/Program Files (x86)/Dev-Cpp/MinGW64/x86_64-w64-mingw32/lib32" -static-libgcc -mwindows -m32
+INCS     = -I"C:/Program Files (x86)/Dev-Cpp/MinGW64/include" -I"C:/Program Files (x86)/Dev-Cpp/MinGW64/x86_64-w64-mingw32/include" -I"C:/Program Files (x86)/Dev-Cpp/MinGW64/lib/gcc/x86_64-w64-mingw32/4.9.2/include"
+CXXINCS  = -I"C:/Program Files (x86)/Dev-Cpp/MinGW64/include" -I"C:/Program Files (x86)/Dev-Cpp/MinGW64/x86_64-w64-mingw32/include" -I"C:/Program Files (x86)/Dev-Cpp/MinGW64/lib/gcc/x86_64-w64-mingw32/4.9.2/include" -I"C:/Program Files (x86)/Dev-Cpp/MinGW64/lib/gcc/x86_64-w64-mingw32/4.9.2/include/c++"
+BIN      = Bin/FotoSCIhop.exe
+CXXFLAGS = $(CXXINCS) -m32
+CFLAGS   = $(INCS) -m32
+RM       = rm.exe -f
 
 .PHONY: all all-before all-after clean clean-custom
 
-all: all-before FotoSCIhop.exe all-after
-
+all: all-before $(BIN) all-after
 
 clean: clean-custom
 	${RM} $(OBJ) $(BIN)
 
 $(BIN): $(OBJ)
-	$(CPP) $(LINKOBJ) -o "FotoSCIhop.exe" $(LIBS)
+	$(CPP) $(LINKOBJ) -o $(BIN) $(LIBS)
 
 FotoSCIhop.o: FotoSCIhop.cpp
 	$(CPP) -c FotoSCIhop.cpp -o FotoSCIhop.o $(CXXFLAGS)
@@ -49,3 +48,7 @@ stdafx.o: stdafx.cpp
 
 v56files.o: v56files.cpp
 	$(CPP) -c v56files.cpp -o v56files.o $(CXXFLAGS)
+
+FotoSCIhop(ENG)_private.res: FotoSCIhop(ENG)_private.rc 
+	$(WINDRES) -i FotoSCIhop(ENG)_private.rc -F pe-i386 --input-format=rc -o FotoSCIhop(ENG)_private.res -O coff 
+

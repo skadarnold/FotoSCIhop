@@ -1,5 +1,6 @@
 /*	FotoSCIhop - Sierra SCI1.1/SCI32 games translator
  *  Copyright (C) Enrico Rolfi 'Endroz', 2004-2021.
+ *  Copyright (C) Daniel Arnold 'Dhel', 2022-2024.
  *
  *  This file defines the entry point for the application, GUI events, etc.
  *
@@ -13,7 +14,7 @@
 #include "FotoSCIhop.h"
 #define MAX_LOADSTRING 100
 
-#include "english.h" // Dhel
+
 
 
 // Global Variables:
@@ -34,36 +35,31 @@ LRESULT CALLBACK	About(HWND, UINT, WPARAM, LPARAM);
 
 void ShowLoopCell(unsigned char newloop, unsigned char newcell)
 {
-	Loop **tloop=globalView->Loops()->getItem(newloop);
-	if (tloop)
-	{	
-		curCell=(*tloop)->Cells()->getItem(newcell);
-		if (curCell || (*tloop)->Mirrored())
-		{
-			globalView->SelectedLoop(newloop);
-			if (curCell)
-			{
-				(*curCell)->GetImage(&curShownImageHeader, &curShownImage);
-				(*tloop)->SelectedCell(newcell);
-			}
-			else
-			{	
-				curShownImage=0;
-				curShownImageHeader=0;
-			}
+	curLoopIndex = newloop;
+	
+
+	curLoop = &globalView->loops[newloop];
+	if (curLoop)
+	{		
+		curCell=&globalView->loops[newloop]->cells[newcell];
+		
+		if (curCell || (*curLoop)->Head.flags)
+		{					
+			if (curCell && !(*curLoop)->Head.flags)
+				curCellIndex = newcell;
 
 			HMENU menu = GetMenu(hWnd); 
 		
-			//EnableMenuItem(menu, ID_INGRANDIMENTO_NORMALE, ((*tloop)->Mirrored() ?MF_GRAYED :MF_ENABLED));
-			//EnableMenuItem(menu, ID_INGRANDIMENTO_X2, ((*tloop)->Mirrored() ?MF_GRAYED :MF_ENABLED));
-			//EnableMenuItem(menu, ID_INGRANDIMENTO_X3, ((*tloop)->Mirrored() ?MF_GRAYED :MF_ENABLED));
-			//EnableMenuItem(menu, ID_INGRANDIMENTO_X4, ((*tloop)->Mirrored() ?MF_GRAYED :MF_ENABLED));
+			//EnableMenuItem(menu, ID_INGRANDIMENTO_NORMALE, ((*tloop)->Head.flags ?MF_GRAYED :MF_ENABLED));
+			//EnableMenuItem(menu, ID_INGRANDIMENTO_X2, ((*tloop)->Head.flags ?MF_GRAYED :MF_ENABLED));
+			//EnableMenuItem(menu, ID_INGRANDIMENTO_X3, ((*tloop)->Head.flags ?MF_GRAYED :MF_ENABLED));
+			//EnableMenuItem(menu, ID_INGRANDIMENTO_X4, ((*tloop)->Head.flags ?MF_GRAYED :MF_ENABLED));
 
-			EnableMenuItem(menu, ID_IMPORTABMP, ((*tloop)->Mirrored() ?MF_GRAYED :MF_ENABLED));
-			EnableMenuItem(menu, ID_ESPORTABMP, ((*tloop)->Mirrored() ?MF_GRAYED :MF_ENABLED));
+			EnableMenuItem(menu, ID_IMPORTABMP, ((*curLoop)->Head.flags ?MF_GRAYED :MF_ENABLED));
+			EnableMenuItem(menu, ID_ESPORTABMP, ((*curLoop)->Head.flags ?MF_GRAYED :MF_ENABLED));
 			EnableMenuItem(menu, ID_CICLOPRECEDENTE, MF_ENABLED);
 			EnableMenuItem(menu, ID_CICLOSUCCESSIVO, MF_ENABLED);
-			if (newloop == globalView->LoopsCount() -1)
+			if (newloop == globalView->Head.view32.loopCount - 1)
 				EnableMenuItem(menu, ID_CICLOSUCCESSIVO, MF_GRAYED);
 		
 			if (newloop == 0)
@@ -71,7 +67,7 @@ void ShowLoopCell(unsigned char newloop, unsigned char newcell)
 
 			EnableMenuItem(menu, ID_CELLAPRECEDENTE, MF_ENABLED);
 			EnableMenuItem(menu, ID_CELLASUCCESSIVA, MF_ENABLED);
-			if ((newcell == (*tloop)->CellsCount() -1) || ((*tloop)->CellsCount()==0) )
+			if ((newcell == globalView->loops[newloop]->Head.numCels -1) || (globalView->loops[newloop]->Head.numCels==0) )
 				EnableMenuItem(menu, ID_CELLASUCCESSIVA, MF_GRAYED);
 		
 			if (newcell == 0)
@@ -79,6 +75,12 @@ void ShowLoopCell(unsigned char newloop, unsigned char newcell)
 
 
 			InvalidateRgn(hWnd, NULL, true);
+
+			if (hPropertiesDialog)
+				DoUpdatePropertiesProc(hPropertiesDialog);
+
+			if (hLinkPointDialog)
+				DoUpdateLinkPointProc(hLinkPointDialog);
 		}
 	}
 }
@@ -118,13 +120,14 @@ void SetMagnify(int value)
 	InvalidateRgn(hWnd,NULL,true);
 
 }
+
 void ShowCell(unsigned char newcell)
 {
-	curCell=globalPicture->Cells()->getItem(newcell);
+	curCellIndex = newcell;
+	curCell=&globalPicture->cells[curCellIndex];
 	if (curCell)
 	{	
-		(*curCell)->GetImage(&curShownImageHeader, &curShownImage);
-		globalPicture->SelectedCell(newcell);
+		//globalPicture->SelectedCell(newcell);
 
 		HMENU menu = GetMenu(hWnd); 
 
@@ -135,15 +138,18 @@ void ShowCell(unsigned char newcell)
 	
 		EnableMenuItem(menu, ID_CELLAPRECEDENTE, MF_ENABLED);
 		EnableMenuItem(menu, ID_CELLASUCCESSIVA, MF_ENABLED);
-		if (newcell == globalPicture->CellsCount() -1)
+		if (curCellIndex == globalPicture->CellsCount() -1)
 			EnableMenuItem(menu, ID_CELLASUCCESSIVA, MF_GRAYED);
 		
-		if (newcell == 0)
+		if (curCellIndex == 0)
 			EnableMenuItem(menu, ID_CELLAPRECEDENTE, MF_GRAYED);
 
-
 		InvalidateRgn(hWnd, NULL, true);
-	
+
+		if (hPropertiesDialog)
+		{
+			DoUpdatePropertiesProc(hPropertiesDialog);
+		}
 	}
 }
 
@@ -184,8 +190,6 @@ BOOL DoFileOpen(HWND hwnd, char *filename, char *ext)
 
 	  int result;
 	  
-	  curShownImageHeader = 0;
-	  curShownImage = 0;
 	  curCell=0;
 
 	  if (globalPicture)
@@ -233,7 +237,19 @@ BOOL DoFileOpen(HWND hwnd, char *filename, char *ext)
 			else
 			{	
 				globalPicture = newPicture;
+
+				//for (int i=0; i<globalPicture->CellsCount(); i++)
+				//{
+				//	globalPicture->cells[i]->GetImage(&globalPicture->cells[i]->bmInfo, &globalPicture->cells[i]->bmImage);
+				//}
 				ShowCell(0);
+
+				// Close any old dialog windows
+				DestroyWindow(hPropertiesDialog);
+				hPropertiesDialog = NULL;
+
+				DestroyWindow(hLinkPointDialog);
+				hLinkPointDialog = NULL;
 			}
 
 	  }
@@ -274,7 +290,15 @@ BOOL DoFileOpen(HWND hwnd, char *filename, char *ext)
 			else
 			{
 				globalView = newView;
+				//globalView->loadView(); // Dhel - view object load
 				ShowLoopCell(0,0);
+
+				// Close any old dialog windows
+				DestroyWindow(hPropertiesDialog);
+				hPropertiesDialog = NULL;
+
+				DestroyWindow(hLinkPointDialog);
+				hLinkPointDialog = NULL;
 			}
 
 	  }
@@ -283,16 +307,16 @@ BOOL DoFileOpen(HWND hwnd, char *filename, char *ext)
 		
 
 	  EnableMenuItem(menu, ID_IMPORTABMP, (result==ID_NOERROR ?MF_ENABLED:MF_GRAYED));
-	  EnableMenuItem(menu, ID_ESPORTABMP, (result==ID_NOERROR ?MF_ENABLED:MF_GRAYED));
-	  EnableMenuItem(menu, ID_SALVA, MF_GRAYED);
+	  EnableMenuItem(menu, ID_ESPORTABMP, (result==ID_NOERROR ?MF_ENABLED:MF_GRAYED));	  
 	  datasaved = true;
 	  EnableMenuItem(menu, ID_FILE_NEXTFILE, (result==ID_NOERROR ?MF_ENABLED:MF_GRAYED));
 	  EnableMenuItem(menu, ID_SALVACOME, (result==ID_NOERROR ?MF_ENABLED:MF_GRAYED));
 	  EnableMenuItem(menu, ID_IMPORTABMP, (result==ID_NOERROR ?MF_ENABLED:MF_GRAYED));
 	  EnableMenuItem(menu, ID_ESPORTABMP, (result==ID_NOERROR ?MF_ENABLED:MF_GRAYED));
-	  EnableMenuItem(menu, ID_PROPRIET, (result==ID_NOERROR ?MF_ENABLED:MF_GRAYED));
-	  EnableMenuItem(menu, ID_CHANGEFRAMESIZE, (result==ID_NOERROR ?MF_ENABLED:MF_GRAYED));
-	  EnableMenuItem(menu, ID_PRIORITYBARS, (((result==ID_NOERROR)&&(isPicture)) ?(globalPicture->IsOldFormat()?MF_ENABLED:MF_GRAYED):MF_GRAYED));
+	  EnableMenuItem(menu, ID_INFO, (result==ID_NOERROR ?MF_ENABLED:MF_GRAYED));
+	  EnableMenuItem(menu, IDM_PROPERTIES, (result==ID_NOERROR ?MF_ENABLED:MF_GRAYED)); 
+	  EnableMenuItem(menu, IDM_LINKPOINTS, ((result==ID_NOERROR)&&(globalView) ?MF_ENABLED:MF_GRAYED));
+	  EnableMenuItem(menu, ID_PRIORITYBARS, (((result==ID_NOERROR)&&(isPicture)) ?((globalPicture)->format == _PIC_11 ?MF_ENABLED:MF_ENABLED):MF_GRAYED));
 
 	  EnableMenuItem(menu, ID_PALETTE, (result==ID_NOERROR ?MF_ENABLED:MF_GRAYED));
 	  EnableMenuItem(menu, ID_COLORI_IMPORTACOLORI, (result==ID_NOERROR ?MF_ENABLED:MF_GRAYED));
@@ -346,15 +370,16 @@ BOOL DoFileSave(HWND hwnd)
       return FALSE;
    }
    
+   /* Dhel - removed for CLI. will rather 
    int btn;   
 
    btn = MessageBox (hwnd, WARN_OVERWRITE, WARN_ATTENTION,
                               MB_APPLMODAL | MB_ICONQUESTION | MB_OKCANCEL);
    if (btn == IDCANCEL)
          return FALSE; 
-
+	*/
   
-   if(!(isPicture ?globalPicture->SaveFile(hwnd, szFileName):globalView->SaveFile(hwnd, szFileName)))
+   if(!(isPicture ?globalPicture->SavePic(hwnd, szFileName):globalView->SaveFile(hwnd, szFileName)))
    { 
        MessageBox(hwnd, ERR_CANTSAVECHANGES, ERR_TITLE,
                   MB_OK | MB_ICONSTOP);
@@ -369,6 +394,59 @@ BOOL DoFileSave(HWND hwnd)
 
    return TRUE;
 }
+
+BOOL DoAddCells(int loop, int base, int amount)
+{
+     
+   if(!(isPicture ?globalPicture->addCells(base, amount):globalView->addCells(loop, base, amount)))
+   { 
+       //MessageBox(hwnd, ERR_CANTSAVECHANGES, ERR_TITLE,
+       //           MB_OK | MB_ICONSTOP);
+      // return FALSE;
+   } else {
+       //datasaved = false;
+   }
+
+  // InvalidateRect(hwnd, NULL, true); 
+
+   return TRUE;
+}
+
+BOOL DoAddLoops(int base, int amount)
+{
+	
+   if (FILE *tempf = fopen(szFileName, "rb"))
+      fclose(tempf);
+   else {
+     // MessageBox(hwnd, ERR_FILEMOVED, ERR_TITLE, MB_OK | MB_ICONSTOP);
+      return FALSE;
+   }
+   
+   /* Dhel - removed for CLI. will rather 
+   int btn;   
+
+   btn = MessageBox (hwnd, WARN_OVERWRITE, WARN_ATTENTION,
+                              MB_APPLMODAL | MB_ICONQUESTION | MB_OKCANCEL);
+   if (btn == IDCANCEL)
+         return FALSE; 
+	*/
+  
+   if(!(isPicture ? 0:globalView->addLoops(base, amount)))
+   { 
+       //MessageBox(hwnd, ERR_CANTSAVECHANGES, ERR_TITLE,
+       //           MB_OK | MB_ICONSTOP);
+       return FALSE;
+   } else {
+       //datasaved = true;
+	   //HMENU menu = GetMenu(hwnd); 
+       //EnableMenuItem(menu, ID_SALVA, MF_GRAYED);
+   }
+
+   //InvalidateRect(hwnd, NULL, true); 
+
+   return TRUE;
+}
+
 
 BOOL DoNextFile(HWND hwnd)
 {
@@ -465,7 +543,7 @@ BOOL DoFileSaveAs(HWND hwnd)
    
    if(GetSaveFileName(&ofn))
    {
-        if(!(isPicture ?globalPicture->SaveFile(hwnd, szSaveFileName):globalView->SaveFile(hwnd, szSaveFileName)))
+        if(!(isPicture ?globalPicture->SavePic(hwnd, szSaveFileName):globalView->SaveFile(hwnd, szSaveFileName)))
 		{ 
 			MessageBox(hwnd, ERR_CANTSAVE, ERR_TITLE,
                   MB_OK | MB_ICONSTOP);
@@ -537,22 +615,22 @@ BOOL DoFileExport(HWND hwnd)
 			BITMAPFILEHEADER tfileheader;
 			tfileheader.bfType='MB';
 			tfileheader.bfOffBits=sizeof(BITMAPFILEHEADER)+sizeof(BITMAPINFOHEADER)+256*(sizeof(RGBQUAD));
-			tfileheader.bfSize=tfileheader.bfOffBits+curShownImageHeader->bmiHeader.biSizeImage;
+			tfileheader.bfSize=tfileheader.bfOffBits+(*curCell)->bmInfo->bmiHeader.biSizeImage;
 			tfileheader.bfReserved1=0;
 			tfileheader.bfReserved2=0;
 
 			fwrite(&tfileheader, sizeof(BITMAPFILEHEADER),1,tempfile);
 			BITMAPINFOHEADER tbmiheader;
-            memcpy(&tbmiheader, &(curShownImageHeader->bmiHeader),sizeof(BITMAPINFOHEADER));
+            memcpy(&tbmiheader, &((*curCell)->bmInfo->bmiHeader),sizeof(BITMAPINFOHEADER));
             tbmiheader.biHeight = abs(tbmiheader.biHeight);
    
             fwrite(&tbmiheader,sizeof(BITMAPINFOHEADER),1,tempfile);
-			fwrite(curShownImageHeader->bmiColors,256*sizeof(RGBQUAD),1,tempfile);
+			fwrite((*curCell)->bmInfo->bmiColors,256*sizeof(RGBQUAD),1,tempfile);
 			
             long mywidth = tbmiheader.biSizeImage / tbmiheader.biHeight; 
             
             for (long i=tbmiheader.biHeight-1; i>=0; i--)
-                fwrite((void *)((unsigned long)curShownImage+ i*mywidth),mywidth,1,tempfile);
+                fwrite((void *)((unsigned long)(*curCell)->bmImage + i*mywidth),mywidth,1,tempfile);
 
 			fclose(tempfile);
 		} else
@@ -567,24 +645,47 @@ BOOL DoFileExport(HWND hwnd)
    return TRUE;
 }
 
-BOOL DoFileImport(HWND hwnd)
+// Dhel
+BOOL CLIFileExport(char BMPFileName[MAX_PATH])
 {
-   OPENFILENAME ofn;
-   char szBMPFileName[MAX_PATH] = "";
-
-   ZeroMemory(&ofn, sizeof(OPENFILENAME));
-   //szFileName[0] = 0;
-
-   ofn.lStructSize = sizeof(ofn);
-   ofn.hwndOwner = hwnd;
-   ofn.lpstrFilter = INTERFACE_BMPFILTER; 
-   ofn.lpstrFile = szBMPFileName;
-   ofn.nMaxFile = MAX_PATH;
-
-   ofn.Flags = OFN_EXPLORER | OFN_FILEMUSTEXIST | OFN_HIDEREADONLY;
-   if(GetOpenFileName(&ofn))
+   if(BMPFileName)
    {
-		FILE *tempfile = fopen(szBMPFileName,"rb");
+		FILE *tempfile = fopen(BMPFileName,"wb");
+		if (tempfile)
+		{
+			BITMAPFILEHEADER tfileheader;
+			tfileheader.bfType='MB';
+			tfileheader.bfOffBits=sizeof(BITMAPFILEHEADER)+sizeof(BITMAPINFOHEADER)+256*(sizeof(RGBQUAD));
+			tfileheader.bfSize=tfileheader.bfOffBits+(*curCell)->bmInfo->bmiHeader.biSizeImage;
+			tfileheader.bfReserved1=0;
+			tfileheader.bfReserved2=0;
+
+			fwrite(&tfileheader, sizeof(BITMAPFILEHEADER),1,tempfile);
+			BITMAPINFOHEADER tbmiheader;
+            memcpy(&tbmiheader, &((*curCell)->bmInfo->bmiHeader),sizeof(BITMAPINFOHEADER));
+            tbmiheader.biHeight = abs(tbmiheader.biHeight);
+   
+            fwrite(&tbmiheader,sizeof(BITMAPINFOHEADER),1,tempfile);
+			fwrite((*curCell)->bmInfo->bmiColors,256*sizeof(RGBQUAD),1,tempfile);
+			
+            long mywidth = tbmiheader.biSizeImage / tbmiheader.biHeight; 
+            
+            for (long i=tbmiheader.biHeight-1; i>=0; i--)
+                fwrite((void *)((unsigned long)(*curCell)->bmImage+ i*mywidth),mywidth,1,tempfile);
+
+			fclose(tempfile);
+		} 
+   }
+
+   return TRUE;
+}
+
+// Dhel
+BOOL CLIFileImport(char BMPFileName[MAX_PATH])
+{
+   if(BMPFileName)
+   {
+		FILE *tempfile = fopen(BMPFileName,"rb");
 		if (tempfile)
 		{
 			BITMAPFILEHEADER tfh;	
@@ -592,8 +693,8 @@ BOOL DoFileImport(HWND hwnd)
 
 			if (tfh.bfType!='MB')
 			{
-				MessageBox(hWnd, ERR_INVALIDBMP, ERR_TITLE,
-                            MB_OK | MB_ICONSTOP);
+				//MessageBox(hWnd, ERR_INVALIDBMP, ERR_TITLE,
+                 //           MB_OK | MB_ICONSTOP);
 				fclose(tempfile);
 				return FALSE;
 			}
@@ -603,69 +704,67 @@ BOOL DoFileImport(HWND hwnd)
 
 			if (tbih.biBitCount!=8)
 			{
-				MessageBox(hWnd, ERR_INVALIDCBITBMP, ERR_TITLE,
-                            MB_OK | MB_ICONSTOP);
+				//MessageBox(hWnd, ERR_INVALIDCBITBMP, ERR_TITLE,
+                //            MB_OK | MB_ICONSTOP);
 				fclose(tempfile);
 				return FALSE;
 			}
 
 			if (tbih.biCompression != BI_RGB)
 			{
-				MessageBox(hWnd, ERR_INVALIDCOMPBMP, ERR_TITLE,
-                            MB_OK | MB_ICONSTOP);
+				//MessageBox(hWnd, ERR_INVALIDCOMPBMP, ERR_TITLE,
+                //            MB_OK | MB_ICONSTOP);
 				fclose(tempfile);
 				return FALSE;
-			}
-
-			//user will decide:
-
-			if ((abs(tbih.biHeight) != abs(curShownImageHeader->bmiHeader.biHeight))
-										||
-				(tbih.biWidth != curShownImageHeader->bmiHeader.biWidth))
-			{			
-				int btn;   
-
-				btn = MessageBox (hwnd, WARN_DIFFERENTDIM, WARN_ATTENTION,
-                              MB_APPLMODAL | MB_ICONQUESTION | MB_OKCANCEL);
-				if (btn == IDCANCEL)
-				{
-					fclose(tempfile);
-					return FALSE;
-				}
 			}
 			
 			RGBQUAD tctab[256];
 			fread(tctab,256*sizeof(RGBQUAD),1,tempfile);
 
 			bool remap = false;
-			if (memcmp(tctab, curShownImageHeader->bmiColors, 256*sizeof(RGBQUAD)))
-	/*		{			
-				int btn;   
 
-				btn = MessageBox (hwnd, WARN_DIFFERENTPAL, WARN_ATTENTION,
-                              MB_APPLMODAL | MB_ICONQUESTION | MB_OKCANCEL);
-				if (btn == IDCANCEL)
+			/*
+			if (memcmp(tctab, (*curCell)->bmInfo->bmiColors, 256 * sizeof(RGBQUAD)))
+			{
+				int btn;
+
+				btn = MessageBox(hwnd, WARN_DIFFERENTPAL, WARN_ATTENTION,
+								 MB_APPLMODAL | MB_ICONQUESTION | MB_YESNOCANCEL);
+
+				if (btn == IDYES)
 				{
-					fclose(tempfile);
-					return FALSE;
+					CLIPaletteImport(szBMPFileName);
+					memcpy((*curCell)->bmInfo->bmiColors, tctab, 256 * sizeof(RGBQUAD));
 				}
-				remap =true;
-			}*/
+
+				if (btn == IDCANCEL)
+					return FALSE;
+
+				// remap = true;
+			}
+			*/
+
+			/*
 			{
 				MessageBox(hWnd, ERR_DIFFERENTPALBIS, ERR_TITLE,
-                            MB_OK | MB_ICONEXCLAMATION);
-				fclose(tempfile);
-				return FALSE;
+						   MB_OK | MB_ICONEXCLAMATION);
+				// fclose(tempfile);
+				// return FALSE;
 			}
+			*/
+
+			// import palette automatically
+			if (memcmp(tctab, (*curCell)->bmInfo->bmiColors, 256*sizeof(RGBQUAD)))			
+				CLIPaletteImport (BMPFileName);
 
 			bool isBottomTop=(tbih.biHeight>0);
 
-			unsigned long newheight = abs(tbih.biHeight);
+			unsigned long newHeight = abs(tbih.biHeight);
 
-			unsigned long expectedsize = tbih.biWidth*newheight;
+			unsigned long expectedsize = tbih.biWidth*newHeight;
 			int dwremainder = tbih.biWidth%4;
 			if (dwremainder)
-				expectedsize+= newheight*(4-dwremainder); //bmp requires DWORD align for each scanline
+				expectedsize+= newHeight*(4-dwremainder); //bmp requires DWORD align for each scanline
 
 			fseek(tempfile, 0, SEEK_END);
 			unsigned long imsize = ftell(tempfile) -tfh.bfOffBits;
@@ -674,8 +773,8 @@ BOOL DoFileImport(HWND hwnd)
 
 			if (expectedsize>imsize)//(expectedsize!=imsize)      changed to support Photoshop BMPs
 			{
-				MessageBox(hWnd, ERR_INVALIDSIZEBMP, ERR_TITLE,
-                            MB_OK | MB_ICONSTOP);
+				//MessageBox(hWnd, ERR_INVALIDSIZEBMP, ERR_TITLE,
+                //            MB_OK | MB_ICONSTOP);
 				fclose(tempfile);
 				return FALSE;
 			}
@@ -685,19 +784,8 @@ BOOL DoFileImport(HWND hwnd)
 			if (!isBottomTop)
 				fread(timage, imsize, 1, tempfile);
 			else
-				for (long i = newheight-1; i>=0; i--)
+				for (long i = newHeight-1; i>=0; i--)
 					fread(&(timage[newwidth*i]),newwidth,1,tempfile);
-
-			if (remap)
-			{
-				//for (unsigned long i=0; i<imsize; i++)
-
-				//TODO implement REMAPPING!!!!!!
-				MessageBox(hWnd, ERR_REMAPNOTIMPLEMENTEDYET, ERR_TITLE,
-                            MB_OK | MB_ICONSTOP);
-				fclose(tempfile);
-				return FALSE;
-			}
 
 			long tsizep = ((sizeof(BITMAPINFO)) + 256*(sizeof(RGBQUAD)));
 
@@ -707,30 +795,25 @@ BOOL DoFileImport(HWND hwnd)
 			tbinfo->bmiHeader.biClrImportant=256;
 			tbinfo->bmiHeader.biClrUsed=256;
 			tbinfo->bmiHeader.biCompression=BI_RGB;
-			tbinfo->bmiHeader.biHeight=-newheight; //so that it will be a top-down DIB
+			tbinfo->bmiHeader.biHeight=-newHeight; //so that it will be a top-down DIB
 			tbinfo->bmiHeader.biPlanes=1;
 			tbinfo->bmiHeader.biSize=sizeof(BITMAPINFOHEADER);
 			tbinfo->bmiHeader.biSizeImage=imsize;
 			tbinfo->bmiHeader.biWidth=tbih.biWidth;
 			tbinfo->bmiHeader.biXPelsPerMeter=0; 
 			tbinfo->bmiHeader.biYPelsPerMeter=0;
-			 
-						
-			for (int i=0; i<256; i++)
-				tbinfo->bmiColors[i]= tctab[i];
 
-			
+			for (int i = 0; i < 256; i++)
+					tbinfo->bmiColors[i] = (*curCell)->bmInfo->bmiColors[i];
+
 			if (curCell)
 			{
 				(*curCell)->SetImage(tbinfo, timage);
+	
+				//HMENU menu = GetMenu(hwnd);
 
-				curShownImage = timage;
-				curShownImageHeader = tbinfo;
-					  
-				HMENU menu = GetMenu(hwnd); 
-		
-				EnableMenuItem(menu, ID_SALVA, MF_ENABLED);
-				datasaved = false;
+				//EnableMenuItem(menu, ID_SALVA, MF_ENABLED);
+				//datasaved = false;
 			}
 			else
 			{
@@ -738,16 +821,202 @@ BOOL DoFileImport(HWND hwnd)
 				delete tbinfo;
 			}
 
-			InvalidateRect(hwnd, NULL, true); 
-
 			fclose(tempfile);
+
 			return TRUE;
 		}
 
-        MessageBox(hwnd, ERR_CANTLOADFILE, ERR_TITLE,
-							MB_OK | MB_ICONSTOP);
+        //MessageBox(hwnd, ERR_CANTLOADFILE, ERR_TITLE,
+		//					MB_OK | MB_ICONSTOP);
    }
+
    return TRUE;
+}
+
+
+BOOL DoImageConversion(char fileName[MAX_PATH])
+{
+	// char tempFile[32];
+	// sprintf(tempFile, "%s/temp", gAppPath);
+
+	char cmd[1024];
+
+	sprintf(cmd, "%s-pal-temp.bmp", fileName);
+	CLIFileExport(cmd);
+
+	sprintf(cmd, "%s/tools/SCIC/SCIC --for %d -t %d -c %s-pal-temp.bmp -f %s.png -o %s.bmp", gAppPath, colorLimit, tolerance, fileName, fileName, fileName);
+	system(cmd);
+
+	//sprintf(cmd, "%s/tools/nconvert -quiet -overwrite -out bmp %s.bmp", gAppPath, fileName);
+	//system(cmd);
+
+	sprintf(cmd, "del %s-pal-temp.bmp", fileName);
+	system(cmd);
+	
+	return TRUE;
+}
+
+BOOL DoFileImport(HWND hwnd)
+{
+	OPENFILENAME ofn;
+	char szBMPFileName[MAX_PATH] = "";
+
+	ZeroMemory(&ofn, sizeof(OPENFILENAME));
+	// szFileName[0] = 0;
+
+	ofn.lStructSize = sizeof(ofn);
+	ofn.hwndOwner = hwnd;
+	ofn.lpstrFilter = INTERFACE_BMPFILTER;
+	ofn.lpstrFile = szBMPFileName;
+	ofn.nMaxFile = MAX_PATH;
+
+	ofn.Flags = OFN_EXPLORER | OFN_FILEMUSTEXIST | OFN_HIDEREADONLY;
+	if (GetOpenFileName(&ofn))
+	{
+
+		if (stricmp(szBMPFileName + ofn.nFileExtension, "bmp"))
+		{
+
+			char fileName[sizeof(szBMPFileName)];
+			sprintf(fileName, szBMPFileName);
+
+			fileName[strlen(fileName) - 4] = '\0';
+
+			if (DialogBox(NULL,
+						  MAKEINTRESOURCE(IDD_IMPORT_IMAGE),
+						  hwnd,
+						  (DLGPROC)DoImportImageDlg) == IDOK)
+			{
+				DoImageConversion(fileName);
+				RedrawWindow(hWnd, NULL, NULL, RDW_UPDATENOW);
+			}
+
+			
+
+			// return TRUE;
+			sprintf(szBMPFileName, "%s.bmp", fileName);
+		}
+
+		FILE *tempfile = fopen(szBMPFileName, "rb");
+		if (tempfile)
+		{
+			if (!stricmp(szBMPFileName + ofn.nFileExtension, "bmp"))
+			{
+				CLIFileImport (szBMPFileName);
+
+				InvalidateRect(hwnd, NULL, true);
+
+				datasaved = false;
+
+				//sprintf(cmd, "del %s", szBMPFileName);
+				//system(cmd);
+
+				return TRUE;
+			}
+		}
+
+		MessageBox(hwnd, ERR_CANTLOADFILE, ERR_TITLE,
+							MB_OK | MB_ICONSTOP);
+	}
+
+   return TRUE;
+}
+
+BOOL CLIPaletteImport(char *palette)
+{
+  FILE *tempfile = fopen(palette, "rb");
+  if (tempfile)
+  {
+	  Palette *tnewpal;
+
+	  // load a palette from a bitmap
+	  BITMAPFILEHEADER tfh;
+	  fread(&tfh, sizeof(BITMAPFILEHEADER), 1, tempfile);
+
+	  if (tfh.bfType != 'MB')
+	  {
+		  // MessageBox(hWnd, ERR_INVALIDBMP, ERR_TITLE,
+		  //		  MB_OK | MB_ICONSTOP);
+		  fclose(tempfile);
+		  return FALSE;
+	  }
+
+	  BITMAPINFOHEADER tbih;
+	  fread(&tbih, sizeof(BITMAPINFOHEADER), 1, tempfile);
+
+	  if (tbih.biBitCount != 8)
+	  {
+		 // MessageBox(hWnd, ERR_INVALIDCBITBMP, ERR_TITLE,
+		//			 MB_OK | MB_ICONSTOP);
+		  fclose(tempfile);
+		  return FALSE;
+	  }
+
+	  if (tbih.biCompression != BI_RGB)
+	  {
+		//  MessageBox(hWnd, ERR_INVALIDCOMPBMP, ERR_TITLE,
+		//			 MB_OK | MB_ICONSTOP);
+		  fclose(tempfile);
+		  return FALSE;
+	  }
+
+	  RGBQUAD tctab[256];
+	  fread(tctab, 256 * sizeof(RGBQUAD), 1, tempfile);
+
+	  if (isPicture)
+		  tnewpal = globalPicture->palSCI;
+	  else
+		  tnewpal = globalView->palSCI;
+
+	  for (int i = 0; i < 256; i++)
+	  {
+		  PalEntry *pe = tnewpal->GetPalEntry(i);
+		  PalEntry npe;
+		  npe.remap = (pe == NULL ? 0 : pe->remap);
+		  npe.blue = tctab[i].rgbBlue;
+		  npe.green = tctab[i].rgbGreen;
+		  npe.red = tctab[i].rgbRed;
+		  tnewpal->SetPalEntry(npe, i);
+	  }
+
+	  //(*curCell)->bmImage = 0;
+	  //(*curCell)->bmInfo = 0;
+
+	  if (isPicture)
+	  {
+		  // cycle for clearing images cache
+		  for (int i = 0; i < globalPicture->CellsCount(); i++)
+		  {
+			  globalPicture->cells[i]->setPalette(&tnewpal);
+		  }
+
+		  ShowCell(curCellIndex);
+	  }
+	  else
+	  {
+		  // cycle for clearing images cache
+		  for (int j = 0; j < globalView->Head.view32.loopCount; j++)
+		  {
+			Loop *tloop = globalView->loops[j];
+			  for (int i = 0; i < tloop->Head.numCels; i++)
+			  {
+				  globalView->loops[j]->cells[i]->setPalette(&tnewpal);
+			  }
+		  }
+
+		  Loop *tloop = globalView->loops[curLoopIndex];
+
+		  ShowLoopCell(curLoopIndex, curCellIndex);
+	  }
+
+	  datasaved = false;
+
+	  fclose(tempfile);
+	  return TRUE;
+  }
+
+   //MessageBox(hwnd, ERR_CANTLOADFILE, ERR_TITLE,
+	//		  MB_OK | MB_ICONSTOP);
 }
 
 BOOL DoPaletteImport(HWND hwnd)
@@ -808,9 +1077,9 @@ BOOL DoPaletteImport(HWND hwnd)
 			    fread(tctab,256*sizeof(RGBQUAD),1,tempfile);
                 
                 if (isPicture)
-					tnewpal = globalPicture->PalSCI();
+					tnewpal = globalPicture->palSCI;
                 else
-                    tnewpal = globalView->PalSCI(); 
+                    tnewpal = globalView->palSCI; 
                                                       
 			    for (int i=0; i<256; i++)
 				{
@@ -834,13 +1103,13 @@ BOOL DoPaletteImport(HWND hwnd)
 			  {
 				if (isPicture)
 				{
-					delete globalPicture->PalSCI();
-					globalPicture->PalSCI(tnewpal);
+					delete globalPicture->palSCI;
+					globalPicture->palSCI = tnewpal;
                 }
 				else
 				{
-					delete globalView->PalSCI();
-					globalView->PalSCI(tnewpal);	
+					delete globalView->palSCI;
+					globalView->palSCI = tnewpal;	
 				}
               }
 			  else
@@ -856,38 +1125,36 @@ BOOL DoPaletteImport(HWND hwnd)
 
             }
 
-            curShownImage = 0;
-			curShownImageHeader = 0;
+            (*curCell)->bmImage = 0;
+			(*curCell)->bmInfo = 0;
    
             if (isPicture)
             {   
                 //cycle for clearing images cache
                 for (int i=0; i<globalPicture->CellsCount(); i++)
 				{
-						(*globalPicture->Cells()->getItem(i))->MyPalette(&tnewpal);
+						globalPicture->cells[i]->setPalette(&tnewpal);
 				}
      
-                ShowCell(globalPicture->SelectedCell());                                                      
+                ShowCell(curCellIndex);                                                      
             } else
             {            
                  //cycle for clearing images cache
-                for (int j=0; j<globalView->LoopsCount(); j++)
+                for (int j=0; j<globalView->Head.view32.loopCount; j++)
 				{
-						Loop **tloop=globalView->Loops()->getItem(j);
-						for (int i=0; i<(*tloop)->CellsCount(); i++)
+						Loop *tloop=globalView->loops[j];
+						for (int i=0; i < tloop->Head.numCels; i++)
 						{
-							(*(*tloop)->Cells()->getItem(i))->MyPalette(&tnewpal);
+							tloop->cells[i]->setPalette(&tnewpal);
 							
 						}
 						
 				}
-                
-                ShowLoopCell(globalView->SelectedLoop(), (*globalView->Loops()->getItem(globalView->SelectedLoop()))->SelectedCell());
+				Loop *tloop = globalView->loops[curLoopIndex];
+
+				ShowLoopCell(curLoopIndex, curCellIndex);
             }
 
-            HMENU menu = GetMenu(hwnd); 
-		
-			EnableMenuItem(menu, ID_SALVA, MF_ENABLED);
 			datasaved = false;
     
 			InvalidateRect(hwnd, NULL, true); 
@@ -925,9 +1192,9 @@ BOOL DoPaletteExport(HWND hwnd)
 		if (tempfile)
 		{
 			if (isPicture)
-				globalPicture->PalSCI()->WritePalette(tempfile, true);
+				globalPicture->palSCI->WritePalette(tempfile, true);
 			else
-				globalView->PalSCI()->WritePalette(tempfile, true);
+				globalView->palSCI->WritePalette(tempfile, true);
 
 			fclose(tempfile);
 		} else
@@ -953,10 +1220,10 @@ BOOL CALLBACK ChangeFrameSizeProc(HWND hwndDlg,
         {
        		if (curCell)
             {
-               SetDlgItemInt(hwndDlg, IDDI_LEFT, (*curCell)->Left(), TRUE);
-               SetDlgItemInt(hwndDlg, IDDI_TOP, (*curCell)->Top(), TRUE);
-               SetDlgItemInt(hwndDlg, IDDI_WIDTH, (*curCell)->Width(), TRUE);
-               SetDlgItemInt(hwndDlg, IDDI_HEIGHT, (*curCell)->Height(), TRUE);
+              // SetDlgItemInt(hwndDlg, IDDI_LEFT, (*curCell)->Left(), TRUE);
+               //SetDlgItemInt(hwndDlg, IDDI_TOP, (*curCell)->Top(), TRUE);
+               //SetDlgItemInt(hwndDlg, IDDI_WIDTH, (*curCell)->Width(), TRUE);
+              // SetDlgItemInt(hwndDlg, IDDI_HEIGHT, (*curCell)->Height(), TRUE);
             }
         
             return TRUE;
@@ -969,10 +1236,11 @@ BOOL CALLBACK ChangeFrameSizeProc(HWND hwndDlg,
                 
        		       if (curCell)
                    {
-                        (*curCell)->Left(GetDlgItemInt(hwndDlg, IDDI_LEFT, NULL, TRUE));
-                        (*curCell)->Top(GetDlgItemInt(hwndDlg, IDDI_TOP, NULL, TRUE));
-                        (*curCell)->Width(GetDlgItemInt(hwndDlg, IDDI_WIDTH, NULL, TRUE));
-                        (*curCell)->Height(GetDlgItemInt(hwndDlg, IDDI_HEIGHT, NULL, TRUE));
+                       // (*curCell)->Left(GetDlgItemInt(hwndDlg, IDDI_LEFT, NULL, TRUE));
+                       // (*curCell)->Top(GetDlgItemInt(hwndDlg, IDDI_TOP, NULL, TRUE));
+                       // (*curCell)->Width(GetDlgItemInt(hwndDlg, IDDI_WIDTH, NULL, TRUE));
+                       // (*curCell)->Height(GetDlgItemInt(hwndDlg, IDDI_HEIGHT, NULL, TRUE));
+
                    }
  
                 case IDCANCEL: 
@@ -983,31 +1251,412 @@ BOOL CALLBACK ChangeFrameSizeProc(HWND hwndDlg,
     return FALSE; 
 } 
 
+BOOL CALLBACK DoImportImageDlg(HWND hwndDlg,
+							   UINT message,
+							   WPARAM wParam,
+							   LPARAM lParam)
+{ 
+	
 
-void DoChangeFrameSize(HWND hwnd)
-{
-            if (DialogBox(NULL, 
-                          MAKEINTRESOURCE(IDD_CHANGEFRAMESIZE), 
-                          hwnd, 
-                          (DLGPROC)ChangeFrameSizeProc)==IDOK) 
+    switch (message) 
+    { 
+        case WM_INITDIALOG:
+        {
+       		if (curCell)
             {
-                HMENU menu = GetMenu(hwnd); 
-		
-				EnableMenuItem(menu, ID_SALVA, MF_ENABLED);
-				datasaved = false;
-                
-                RedrawWindow(hWnd, NULL, NULL, RDW_UPDATENOW);
-            
+               SetDlgItemInt(hwndDlg, IDC_IMPORT_CLIMIT, colorLimit, TRUE);
+               SetDlgItemInt(hwndDlg, IDC_IMPORT_TOLERANCE, tolerance, TRUE);
+              
             }
+        
+            return TRUE;
+        }
 
-            else 
-            {
-                // Cancel the command. 
-            } 
+		case WM_COMMAND:
+			switch (LOWORD(wParam))
+			{
+			case IDOK:
+
+				colorLimit = GetDlgItemInt(hwndDlg, IDC_IMPORT_CLIMIT, NULL, TRUE);
+				tolerance = GetDlgItemInt(hwndDlg, IDC_IMPORT_TOLERANCE, NULL, TRUE);
+
+			case IDCANCEL:
+				EndDialog(hwndDlg, wParam);
+				return TRUE;
+			}
+		}
+	return FALSE; 
+} 
+
+// Dhel - modify box
+BOOL CALLBACK DoModifyPropertiesProc(HWND hwndDlg,
+									 UINT message,
+									 WPARAM wParam,
+									 LPARAM lParam)
+{
+	int selLoop = 0;
+	
+	if (globalView)
+		selLoop = curLoopIndex;
+	if (globalPicture)
+		selLoop = 0;
+
+	switch (message)
+	{
+	case WM_INITDIALOG:
+	{
+		
+		DoUpdatePropertiesProc(hwndDlg);
+		
+		return TRUE;
+	}
+
+	case WM_COMMAND:
+		switch (LOWORD(wParam))
+		{
+		case IDOK:
+
+
+			if (globalView)
+			{
+
+				if (curCell)
+				{
+
+					//globalView->cells[i]->Head.pic[(*curCell)->headerIndex].xShift = GetDlgItemInt(hwndDlg, IDDI_LEFT, NULL, TRUE);
+					//globalView->cells[i]->Head.pic[(*curCell)->headerIndex].yShift = GetDlgItemInt(hwndDlg, IDDI_TOP, NULL, TRUE);
+
+						globalView->loops[selLoop]->Head.flags = GetDlgItemInt(hwndDlg, IDC_LOOP_MIRROR, NULL, TRUE);
+						globalView->loops[selLoop]->Head.altLoop = GetDlgItemInt(hwndDlg, IDC_LOOP_BASE, NULL, TRUE);
+
+						if (!(*curLoop)->Head.flags)
+						{
+							CelHeaderView *bCell = new CelHeaderView;
+							bCell = (CelHeaderView *)&(*curCell)->Head;
+
+							bCell->xHot = GetDlgItemInt(hwndDlg, IDDI_LEFT, NULL, TRUE);
+							bCell->yHot = GetDlgItemInt(hwndDlg, IDDI_TOP, NULL, TRUE);
+
+							globalView->loops[selLoop]->Head.contLoop = GetDlgItemInt(hwndDlg, IDC_LOOP_CONTINUE, NULL, TRUE);
+							globalView->loops[selLoop]->Head.startCel = GetDlgItemInt(hwndDlg, IDC_LOOP_STARTCELL, NULL, TRUE);
+							globalView->loops[selLoop]->Head.endCel = GetDlgItemInt(hwndDlg, IDC_LOOP_ENDCELL, NULL, TRUE);
+							globalView->loops[selLoop]->Head.repeatCount = GetDlgItemInt(hwndDlg, IDC_LOOP_REPEAT, NULL, TRUE);
+							globalView->loops[selLoop]->Head.stepSize = GetDlgItemInt(hwndDlg, IDC_LOOP_STEPSIZE, NULL, TRUE);
+						}
+						else
+						{
+							globalView->loops[selLoop]->Head.contLoop = -1;
+							globalView->loops[selLoop]->Head.startCel = -1;
+							globalView->loops[selLoop]->Head.endCel = -1;
+							globalView->loops[selLoop]->Head.repeatCount = 255;
+							globalView->loops[selLoop]->Head.stepSize = 3;
+						}
+				}
+
+				globalView->Head.view32.resX = GetDlgItemInt(hwndDlg, IDDI_RESX, NULL, TRUE);
+				globalView->Head.view32.resY = GetDlgItemInt(hwndDlg, IDDI_RESY, NULL, TRUE);
+
+	
+				int addLoop = 0;
+
+				int loopDelta = GetDlgItemInt(hwndDlg, IDC_LOOPS_DELTA, NULL, TRUE);
+
+				if (loopDelta != 0)
+					DoAddLoops (curLoopIndex, loopDelta);
+
+				int addCell = 0;
+
+				int cellDelta = GetDlgItemInt(hwndDlg, IDC_CELLS_DELTA, NULL, TRUE);
+				
+				if (cellDelta != 0)
+					DoAddCells(curLoopIndex, curCellIndex, cellDelta);
+			
+				ShowLoopCell(curLoopIndex, curCellIndex); // refresh screen
+			}
+
+			if (globalPicture)
+			{
+				PicHeader11 *bPic11 = new PicHeader11;
+				PicHeader32 *bPic32 = new PicHeader32;
+
+				switch (globalPicture->format)
+				{
+				case _PIC_11:
+					bPic11 = (PicHeader11 *)&globalPicture->Head;
+					bPic11->vanishX = GetDlgItemInt(hwndDlg, IDDI_RESX, NULL, TRUE);
+					bPic11->viewAngle = GetDlgItemInt(hwndDlg, IDDI_RESY, NULL, TRUE);
+					break;
+
+				case _PIC_32:
+					bPic32 = (PicHeader32 *)&globalPicture->Head;
+					bPic32->resX = GetDlgItemInt(hwndDlg, IDDI_RESX, NULL, TRUE);
+					bPic32->resY = GetDlgItemInt(hwndDlg, IDDI_RESY, NULL, TRUE);
+					break;
+				}		
+
+				if (curCell)
+				{
+					CelHeaderPic *bCell = new CelHeaderPic;
+					bCell = (CelHeaderPic*)&(*curCell)->Head;
+
+					bCell->xpos = GetDlgItemInt(hwndDlg, IDDI_LEFT, NULL, TRUE);
+					bCell->ypos = GetDlgItemInt(hwndDlg, IDDI_TOP, NULL, TRUE);
+					bCell->priority = GetDlgItemInt(hwndDlg, IDC_POS_PRI, NULL, TRUE);
+				}
+
+				int addCell = 0;
+				int cellDelta = GetDlgItemInt(hwndDlg, IDC_CELLS_DELTA, NULL, TRUE);
+				
+				if (cellDelta != 0)
+					DoAddCells(curLoopIndex, curCellIndex, cellDelta);
+
+				ShowCell(curCellIndex); // refresh screen
+			};
+
+			datasaved = false;
+						
+			return TRUE;
+
+		case IDCANCEL:
+			EndDialog(hwndDlg, wParam);
+			return TRUE;
+		}
+	}
+	return FALSE;
 }
+
+// Dhel - modify box
+void DoUpdatePropertiesProc(HWND hwndDlg)
+{
+	int selLoop = 0;
+	
+	if (globalView)
+		selLoop = curLoopIndex;
+	if (globalPicture)
+		selLoop = 0;
+
+	
+
+			
+		if (globalView)
+		{
+			SetDlgItemInt(hwndDlg, IDDI_RESX, globalView->Head.view32.resX, TRUE);
+			SetDlgItemInt(hwndDlg, IDDI_RESY, globalView->Head.view32.resY, TRUE);
+
+			if (curCell)
+			{
+
+			if (!(*curLoop)->Head.flags)
+			{
+
+				CelHeaderView *bCell = new CelHeaderView;
+				bCell = (CelHeaderView *)&(*curCell)->Head;
+
+				SetDlgItemInt(hwndDlg, IDDI_LEFT, bCell->xHot, TRUE);
+				SetDlgItemInt(hwndDlg, IDDI_TOP, bCell->yHot, TRUE);
+
+				SetDlgItemInt(hwndDlg, IDC_LOOP_CONTINUE, globalView->loops[selLoop]->Head.contLoop, TRUE);
+				SetDlgItemInt(hwndDlg, IDC_LOOP_STARTCELL, globalView->loops[selLoop]->Head.startCel, TRUE);
+				SetDlgItemInt(hwndDlg, IDC_LOOP_ENDCELL, globalView->loops[selLoop]->Head.endCel, TRUE);
+				SetDlgItemInt(hwndDlg, IDC_LOOP_REPEAT, globalView->loops[selLoop]->Head.repeatCount, TRUE);
+				SetDlgItemInt(hwndDlg, IDC_LOOP_STEPSIZE, globalView->loops[selLoop]->Head.stepSize, TRUE);
+			}
+			else
+			{
+				SetDlgItemInt(hwndDlg, IDDI_LEFT, 0, TRUE);
+				SetDlgItemInt(hwndDlg, IDDI_TOP, 0, TRUE);
+
+				SetDlgItemInt(hwndDlg, IDC_LOOP_CONTINUE, -1, TRUE);
+				SetDlgItemInt(hwndDlg, IDC_LOOP_STARTCELL, -1, TRUE);
+				SetDlgItemInt(hwndDlg, IDC_LOOP_ENDCELL, -1, TRUE);
+				SetDlgItemInt(hwndDlg, IDC_LOOP_REPEAT, 255, TRUE);
+				SetDlgItemInt(hwndDlg, IDC_LOOP_STEPSIZE, 3, TRUE);
+			}
+
+			SetDlgItemInt(hwndDlg, IDC_LOOP_MIRROR, globalView->loops[selLoop]->Head.flags, TRUE);
+			SetDlgItemInt(hwndDlg, IDC_LOOP_BASE, globalView->loops[selLoop]->Head.altLoop, TRUE);
+			}
+
+			SetDlgItemInt(hwndDlg, IDC_LOOPS_DELTA, 0, TRUE);
+			SetDlgItemInt(hwndDlg, IDC_CELLS_DELTA, 0, TRUE);
+		}
+
+		if (globalPicture)
+		{
+			PicHeader11 *bPic11 = new PicHeader11;
+			PicHeader32 *bPic32 = new PicHeader32;
+
+			switch (globalPicture->format)
+			{
+			case _PIC_11:
+			bPic11 = (PicHeader11 *)&globalPicture->Head;
+			SetDlgItemInt(hwndDlg, IDDI_RESX, bPic11->vanishX, TRUE);
+			SetDlgItemInt(hwndDlg, IDDI_RESY, bPic11->viewAngle, TRUE);
+			break;
+
+			case _PIC_32:
+			bPic32 = (PicHeader32 *)&globalPicture->Head;
+			SetDlgItemInt(hwndDlg, IDDI_RESX, bPic32->resX, TRUE);
+			SetDlgItemInt(hwndDlg, IDDI_RESY, bPic32->resY, TRUE);
+			break;
+			}
+
+			if (curCell)
+			{
+				CelHeaderPic *bCell = new CelHeaderPic;
+				bCell = (CelHeaderPic*)&(*curCell)->Head;
+
+				SetDlgItemInt(hwndDlg, IDDI_LEFT, bCell->xpos, TRUE);
+				SetDlgItemInt(hwndDlg, IDDI_TOP, bCell->ypos, TRUE);
+				SetDlgItemInt(hwndDlg, IDC_POS_PRI, bCell->priority, TRUE);
+			}
+
+			SetDlgItemInt(hwndDlg, IDC_CELLS_DELTA, 0, TRUE);
+		}
+
+		InvalidateRgn(hPropertiesDialog, NULL, true);
+
+}
+
+void DoModifyProperties(HWND hwnd)
+{
+		if (globalView)
+			hPropertiesDialog = CreateDialog(NULL,
+											 MAKEINTRESOURCE(IDD_PROPERTIES_V),
+											 hwnd,
+											 (DLGPROC)DoModifyPropertiesProc);
+
+		if (globalPicture)
+			hPropertiesDialog = CreateDialog(NULL,
+											 MAKEINTRESOURCE(IDD_PROPERTIES_P),
+											 hwnd,
+											 (DLGPROC)DoModifyPropertiesProc);
+
+		if (hPropertiesDialog != NULL)
+		{
+			ShowWindow(hPropertiesDialog, SW_SHOW);
+		}
+		else
+		{
+			// Failed to create dialog
+		}
+}
+
+BOOL CALLBACK DoLinkPointProc(HWND hwndDlg,
+									 UINT message,
+									 WPARAM wParam,
+									 LPARAM lParam)
+{
+	int selLoop = 0;
+	
+	if (globalView)
+		selLoop = curLoopIndex;
+	if (globalPicture)
+		selLoop = 0;
+
+	switch (message)
+	{
+	case WM_INITDIALOG:
+	{
+		
+		DoUpdateLinkPointProc(hwndDlg);
+		
+		return TRUE;
+	}
+
+	case WM_COMMAND:
+		switch (LOWORD(wParam))
+		{
+		case IDOK:
+
+
+			if (globalView)
+			{
+				if (curCell)
+				{
+					CelHeaderView *bCell = new CelHeaderView;
+					bCell = (CelHeaderView*)&(*curCell)->Head;
+
+					bCell->linkTableCount = GetDlgItemInt(hwndDlg, IDC_LINK_COUNT, NULL, TRUE);
+
+					for (int i = 0; i < bCell->linkTableCount; i++)
+					{
+							(*curCell)->linkPoints[i].x = GetDlgItemInt(hwndDlg, IDC_LINK_X_1 + i, NULL, TRUE);
+							(*curCell)->linkPoints[i].y = GetDlgItemInt(hwndDlg, IDC_LINK_Y_1 + i, NULL, TRUE);
+							(*curCell)->linkPoints[i].priority = GetDlgItemInt(hwndDlg, IDC_LINK_PRI_1 + i, NULL, TRUE);
+							(*curCell)->linkPoints[i].positionType = GetDlgItemInt(hwndDlg, IDC_LINK_TYPE_1 + i, NULL, TRUE);
+					}
+				}
+
+				ShowLoopCell(curLoopIndex, curCellIndex); // refresh screen
+			}
+
+			datasaved = false;
+				
+			return TRUE;
+
+		case IDCANCEL:
+			EndDialog(hwndDlg, wParam);
+			return TRUE;
+		}
+	}
+	return FALSE;
+}
+
+void DoUpdateLinkPointProc(HWND hwndDlg)
+{
+	int selLoop = 0;
+	
+	if (globalView)
+		selLoop = curLoopIndex;
+	if (globalPicture)
+		selLoop = 0;
+
+			
+		if (globalView)
+		{			
+			if (!(*curLoop)->Head.flags)
+			{
+				CelHeaderView *bCell = new CelHeaderView;
+				bCell = (CelHeaderView*)&(*curCell)->Head;
+				
+				SetDlgItemInt(hwndDlg, IDC_LINK_COUNT, bCell->linkTableCount, TRUE);
+
+				// link table
+				for (int i = 0; i < bCell->linkTableCount; i++)
+				{
+					SetDlgItemInt(hwndDlg, IDC_LINK_X_1 + i, (*curCell)->linkPoints[i].x, TRUE);
+					SetDlgItemInt(hwndDlg, IDC_LINK_Y_1 + i, (*curCell)->linkPoints[i].y, TRUE);
+					SetDlgItemInt(hwndDlg, IDC_LINK_PRI_1 + i, (*curCell)->linkPoints[i].priority, TRUE);
+					SetDlgItemInt(hwndDlg, IDC_LINK_TYPE_1 + i, (*curCell)->linkPoints[i].positionType, TRUE);
+				}
+			}
+			
+			InvalidateRgn(hLinkPointDialog, NULL, true);
+
+		}
+}
+
+void DoLinkPointDialog(HWND hwnd)
+{
+    hLinkPointDialog = CreateDialog(NULL, 
+                                                MAKEINTRESOURCE(IDD_LINKPOINTS), 
+                                                hwnd, 
+                                                (DLGPROC)DoLinkPointProc);
+    if (hLinkPointDialog != NULL)
+    {
+        ShowWindow(hLinkPointDialog, SW_SHOW);
+    }
+    else
+    {
+        // Failed to create dialog
+    }
+}
+
 
 void DoPropertyBox(HWND hwnd)
 {
+	/*
 	char propstr[1024]="";
 
 	if (isPicture)
@@ -1034,39 +1683,44 @@ void DoPropertyBox(HWND hwnd)
 						tscreenres,
 						globalPicture->CellRecSize());
 						
-		if (globalPicture->IsOldFormat())
+		if (globalPicture->format == _PIC_11)
 		{
-			sprintf(tscreenres, "\n%s%ld\n", INTERFACE_VECTORSIZESTR, globalPicture->VectorSize());
+			sprintf(tscreenres, "\n%s%ld\n", INTERFACE_VECTORSIZESTR, globalPicture->Head.oldhead.VectorDataLenght);
 			strcat(propstr, tscreenres);
 			
-			sprintf(tscreenres, INTERFACE_PRIORITYSTR, globalPicture->nPriorities(), globalPicture->PriLineCount());
+			sprintf(tscreenres, INTERFACE_PRIORITYSTR, globalPicture->Head.oldhead.nPriorities, globalPicture->Head.oldhead.priLineCount);
 			strcat(propstr, tscreenres);
 		}
 		
 		if (curCell)
 		{
+			CelHeaderPic *bCell = new CelHeaderPic;
+			bCell = (CelHeaderPic*)&(*curCell)->Head;
+
             char tcell[256];
             sprintf(tcell, INTERFACE_P56CELLPROPSTR,
 						' ',
-						globalPicture->SelectedCell()+1,
+						curCellIndex+1,
 						' ',
-						(*curCell)->Width(),(*curCell)->Height(),
-						(*curCell)->Left(),(*curCell)->Top(),
-						(*curCell)->SkipColor(),
-						(*curCell)->Compression(),
-						(*curCell)->Flags(),
-						(*curCell)->ZDepth(),
-						(*curCell)->XPos(),
-						(*curCell)->YPos()
+						//(*curCell)->Width(),(*curCell)->Height(),
+						bCell->xDim,bCell->yDim,
+						bCell->xHot, bCell->yHot,
+						bCell->skip,
+						bCell->compressType,
+						bCell->dataFlags,
+						bCell->priority,
+						bCell->xpos,
+						bCell->ypos
 						);
+
 			strcat(propstr, tcell);
         }
 	}
 	else //isView
 	{
 		char tviewres[64], tscreenres[64], tcell[256];
-		sprintf(tviewres, "%d", globalView->ViewSize());
-		switch (globalView->ViewSize())
+		sprintf(tviewres, "%d", globalView->Head.ViewSize);
+		switch (globalView->Head.ViewSize)
 		{
 		case 0:
 			strcat(tviewres, " (320 x 200)");
@@ -1079,63 +1733,232 @@ void DoPropertyBox(HWND hwnd)
 			break;
 		}
 
-		sprintf(tscreenres, "%d x %d", globalView->MaxWidth(), globalView->MaxHeight());
-		if ((globalView->MaxWidth() == 0) && (globalView->MaxHeight() == 0))
+		sprintf(tscreenres, "%d x %d", globalView->Head.ResolutionX, globalView->Head.ResolutionY);
+		if ((globalView->Head.ResolutionX == 0) && (globalView->Head.ResolutionY == 0))
 		{
 			strcat(tscreenres, INTERFACE_SEEVIEWRESSTR);
 		}
 
-		Loop **tloop=globalView->Loops()->getItem(globalView->SelectedLoop());
+		Loop *tloop=globalView->loops[curLoopIndex];
+
 		sprintf(propstr, INTERFACE_PROPVIEWSTR,
 						' ', ' ',
-						globalView->LoopsCount(),
-						globalView->StripView(),
-						(globalView->IsCompressed()?"":INTERFACE_NOTSTR),
+						globalView->Head.LoopCount,
+						globalView->Head.stripView,
+						(globalView->Head.Compressed?"":INTERFACE_NOTSTR),
 						tviewres,
-						globalView->TotalCellsCount(),
-						globalView->LoopRecSize(),
-						globalView->CellRecSize(),
+						globalView->Head.CellsCount,
+						globalView->Head.LoopRecSize,
+						globalView->Head.CellRecSize,
 						tscreenres,
 
 						' ',
-						globalView->SelectedLoop()+1,
+						curLoopIndex+1,
 						' ',
-						(*tloop)->CellsCount(),
-						(*tloop)->BasedOn(),
-						((*tloop)->Mirrored()?"":INTERFACE_NOTSTR),
-						(*tloop)->ContLoop(),                
-                        (*tloop)->StartCel(),                                   
-                        (*tloop)->EndCel(),
-                        (*tloop)->RepeatCount(),                       
-                        (*tloop)->StepSize()
+						tloop->Head.numCels,
+						tloop->Head.altLoop,
+						(tloop->Head.flags?"":INTERFACE_NOTSTR),
+						tloop->Head.contLoop,
+                        tloop->Head.startCel,
+                        tloop->Head.endCel,
+                        tloop->Head.repeatCount,
+                        tloop->Head.stepSize
 						);
 		
 		if (curCell)
 		{
+			CelHeaderView *bCell = new CelHeaderView;
+			bCell = (CelHeaderView*)&(*curCell)->Head;
+
 			sprintf(tcell, INTERFACE_VIEWCELLPROPSTR,
 							' ',
-							(*tloop)->SelectedCell()+1,
+							curCellIndex+1,
 							' ',
-							(*curCell)->Width(),(*curCell)->Height(),
-							(*curCell)->Left(),(*curCell)->Top(),
-							(*curCell)->SkipColor(),
-							(*curCell)->Compression(),
-							(*curCell)->Flags()
+							bCell->xDim, bCell->yDim,
+							bCell->xHot, bCell->yHot,
+							bCell->skip,
+							bCell->compressType,
+							bCell->dataFlags
 							);
 			strcat(propstr, tcell);
 			
-			if (globalView->HasLinks())
-			{
-                sprintf(tcell, INTERFACE_LINKCOUNTSTR, (*curCell)->LinksCount());
-			    strcat(propstr, tcell);
-            }
 		}
-
 	}
-
+	
 	MessageBox(hwnd, propstr, INTERFACE_PROPERTIES, MB_OK);
+
+	*/
 }
 
+int cliExport(char *name)
+{
+	int retVal = 0;
+
+	if (globalView)
+	{
+		for (int l = 0; l < globalView->Head.view32.loopCount; l++)
+		{
+			Loop *tloop = globalView->loops[l];
+			for (int c = 0; c < tloop->Head.numCels; c++)
+			{
+				ShowLoopCell(l, c);
+
+				if (!tloop->Head.flags)
+				{
+					char cellName[MAX_PATH];
+
+					sprintf(cellName, "%s-%d-%d.bmp", name, l + 1, c + 1);
+
+					CLIFileExport(cellName);
+				}
+			}
+		}
+	}
+
+	if (globalPicture)
+	{
+		for (int c = 0; c < globalPicture->CellsCount(); c++)
+		{
+			ShowCell(c);
+
+			char cellName[MAX_PATH];
+
+			sprintf(cellName, "%s-%d.bmp", name, c + 1);
+
+			CLIFileExport(cellName);
+
+
+		}
+	}
+
+	retVal = 1;
+
+	return retVal;
+}
+
+int cliImport( char *name)
+{
+	int retVal = 0;
+
+	if (globalView)
+	{
+		for (int l = 0; l < globalView->Head.view32.loopCount; l++)
+		{
+			Loop *tloop = globalView->loops[l];
+
+			for (int c = 0; c < tloop->Head.numCels; c++)
+			{
+				ShowLoopCell(l, c);
+
+				if (!tloop->Head.flags)
+				{
+					char cellName[MAX_PATH];
+
+					sprintf(cellName, "%s-%d-%d.bmp", name, l + 1, c + 1);
+
+					CLIPaletteImport(cellName);
+					CLIFileImport(cellName);
+				}
+			}
+		}
+	}
+	if (globalPicture)
+	{
+
+		for (int c = 0; c < globalPicture->CellsCount(); c++)
+		{
+			ShowCell(c);
+
+			char cellName[MAX_PATH];
+
+			sprintf(cellName, "%s-%d.bmp", name, c + 1);
+
+			CLIPaletteImport(cellName);
+			CLIFileImport(cellName);
+		}
+	}
+
+	retVal = 1;
+
+	return retVal;
+}
+
+int cliScale(int scaleX, int scaleY)
+{
+	int retVal = 0;
+
+	if (globalView)
+	{
+
+		globalView->Head.view32.resX = (globalView->Head.view32.resX * scaleX) / 100;
+		globalView->Head.view32.resY = (globalView->Head.view32.resY * scaleY) / 100;
+
+		for (int j = 0; j < globalView->Head.view32.loopCount; j++)
+		{
+			Loop *loop = globalView->loops[j];
+			for (int i = 0; i < globalView->loops[j]->Head.numCels; i++)
+			{
+				Cell *cell = loop->cells[i];
+
+				CelHeaderView *bCell = new CelHeaderView;
+				bCell = (CelHeaderView*)&cell->Head;
+				
+				for (int lp = 0; lp < bCell->linkTableCount; lp++)
+				{
+					globalView->loops[j]->cells[i]->linkPoints[lp].x = (cell->linkPoints[lp].x * scaleX) / 100;
+					globalView->loops[j]->cells[i]->linkPoints[lp].y = (cell->linkPoints[lp].y * scaleY) / 100;
+				}
+
+				bCell->xHot = (bCell->xHot * scaleX) / 100;
+				bCell->yHot = (bCell->yHot * scaleY) / 100;
+			}
+		}
+	}
+
+	if (globalPicture)
+	{
+		globalPicture->Head.pic32.resX = (globalPicture->Head.pic32.resX * scaleX) / 100;
+		globalPicture->Head.pic32.resY = (globalPicture->Head.pic32.resY * scaleY) / 100;
+
+		for (int i = 0; i < globalPicture->CellsCount(); i++)
+		{
+			CelHeaderPic *bCell = new CelHeaderPic;
+			bCell = (CelHeaderPic*)&(*curCell)->Head;
+
+			bCell->xpos = (bCell->xpos * scaleX) / 100; 
+			bCell->ypos = (bCell->ypos * scaleY) / 100; 
+			bCell->priority = (bCell->priority * scaleY) / 100; 
+		}
+	}
+
+	retVal = 1;
+
+	return retVal;
+}
+
+int cliSetHeader( int vanishX, int viewAngle )
+{
+	int retVal = 0;
+
+	if (globalView)
+	{
+		globalView->Head.view32.resX = vanishX;
+		globalView->Head.view32.resY = viewAngle;
+	}
+
+	if (globalPicture)		
+	{
+		//globalPicture->MaxWidth(vanishX);
+		//globalPicture->MaxHeight(viewAngle);
+
+		globalPicture->Head.pic32.resX = vanishX;
+		globalPicture->Head.pic32.resY = viewAngle;
+	}
+
+	retVal = 1;
+
+	return retVal;
+}
 
 typedef BOOL (WINAPI*Func)(HWND, char *, unsigned char, char *, char *);
  
@@ -1155,7 +1978,7 @@ int STDCALL WinMain (HINSTANCE hInstance,
 #else 
 int APIENTRY _tWinMain (HINSTANCE hInstance,
                      HINSTANCE hPrevInstance,
-                     LPTSTR    lpCmdLine,
+                     LPSTR    lpCmdLine,
                      int       nCmdShow)
 {      
 #endif
@@ -1167,6 +1990,120 @@ int APIENTRY _tWinMain (HINSTANCE hInstance,
 	LoadString(hInstance, IDC_IMMAGINA, szWindowClass, MAX_LOADSTRING);
 	MyRegisterClass(hInstance);
 
+	// get app path
+	GetModuleFileName(NULL, gAppPath, MAX_PATH);
+    gAppPath[strrchr(gAppPath, '\\') - gAppPath] = '\0'; 
+
+	// get ini settings
+	char ini[_MAX_PATH];
+	sprintf(ini, "%s\\config.ini", gAppPath);
+
+	gAppResX = GetPrivateProfileInt("preferences", "resX", gAppResX, ini);
+	gAppResY = GetPrivateProfileInt("preferences", "resY", gAppResY, ini);
+	zScale = GetPrivateProfileInt("preferences", "zScale", zScale, ini);
+	gPosCells = GetPrivateProfileInt("preferences", "posCells", gPosCells, ini);
+	gBaseMagnify = GetPrivateProfileInt("preferences", "magScale", gBaseMagnify, ini);
+
+	GetPrivateProfileString("preferences", "referenceBM", gReferenceBM, gReferenceBM, _MAX_PATH, ini);
+	gReferenceX = GetPrivateProfileInt("preferences", "referenceX", gReferenceX, ini);
+	gReferenceY = GetPrivateProfileInt("preferences", "referenceY", gReferenceY, ini);
+
+	gCliEnabled = GetPrivateProfileInt("preferences", "cliStartup", gCliEnabled, ini);
+
+	MagnifyFactor = gBaseMagnify;
+
+	if (gCliEnabled)
+	{
+		// Dhel - cli
+		if (lpCmdLine[0] != 0)
+		{
+			char startupfile[MAX_PATH];
+			
+			// tokenize arguments to array
+			int i = 0;
+			char *p = strtok(lpCmdLine, " ");
+
+			while (p != NULL)
+			{
+				argv[i++] = p;
+				p = strtok(NULL, " ");
+			}
+
+			startupfile[MAX_PATH];
+			if (lpCmdLine[0] == '\"')
+			{
+				strncpy(startupfile, argv[0] + 1, strlen(argv[0]) - 2);
+				startupfile[strlen(argv[0]) - 2] = 0;
+			}
+			else
+				strcpy(startupfile, argv[0]);
+
+			// do cli processes
+			if (argv[1])
+			{
+				DoFileOpen(hWnd, startupfile, startupfile + (strlen(startupfile) - 3));
+
+				if (!strcmp(argv[1], "export"))
+				{
+					cliExport(argv[2]);
+					return 0;
+				}
+
+				if (!strcmp(argv[1], "import") && argv[2])
+				{
+					cliImport(argv[2]);
+
+					if (argv[3] && argv[4])
+						cliScale(atoi(argv[3]), atoi(argv[4]));
+
+					if (argv[5] && argv[6])
+						cliSetHeader(atoi(argv[5]), atoi(argv[6]));
+
+					DoFileSave(hWnd);
+					return 0;
+				}
+
+				if (!strcmp(argv[1], "scale"))
+				{
+					if (argv[2] && argv[3])
+						cliScale(atoi(argv[2]), atoi(argv[3]));
+
+					DoFileSave(hWnd);
+					return 0;
+				}
+
+				if (!strcmp(argv[1], "header"))
+				{
+					if (argv[2] && argv[3])
+					{
+						cliSetHeader(atoi(argv[2]), atoi(argv[3]));
+					}
+
+					DoFileSave(hWnd);
+					return 0;
+				}
+
+				if (!strcmp(argv[1], "addCells"))
+				{
+					if (argv[2] && argv[3] && argv[4])
+						DoAddCells(atoi(argv[2]), atoi(argv[3]), atoi(argv[4]));
+
+					DoFileSave(hWnd);
+					return 0;
+				}
+
+				if (!strcmp(argv[1], "addLoops"))
+				{
+					if (argv[2] && argv[3])
+						DoAddLoops(atoi(argv[2]), atoi(argv[3]));
+
+					DoFileSave(hWnd);
+					return 0;
+				}
+			}
+		}
+	}
+	
 	// Perform application initialization:
 	if (!InitInstance (hInstance, nCmdShow)) 
 	{
@@ -1175,6 +2112,7 @@ int APIENTRY _tWinMain (HINSTANCE hInstance,
 
 	hAccelTable = LoadAccelerators(hInstance, (LPCTSTR)IDC_IMMAGINA);
 
+	#if defined _M_IX86
     HINSTANCE DLL = LoadLibrary("SCIdump.dll");
     /* check for error on loading the DLL */
     if(DLL==NULL) 
@@ -1186,23 +2124,25 @@ int APIENTRY _tWinMain (HINSTANCE hInstance,
     {
        FreeLibrary((HMODULE)DLL);
        MessageBox(NULL, ERR_CANTLOADDLL, ERR_TITLE, MB_OK | MB_ICONERROR);
-    }         
-    
-    if (lpCmdLine[0]!=0)
-    {
-	   char startupfile[MAX_PATH];
-       if (lpCmdLine[0]=='\"')
-	   {
-		   strncpy(startupfile, lpCmdLine+1,strlen(lpCmdLine)-2);
-		   startupfile[strlen(lpCmdLine)-2]=0;
-	   }
-	   else
-		   strcpy(startupfile, lpCmdLine);
+    }
+	#endif
 
-       DoFileOpen(hWnd, startupfile, startupfile+(strlen(startupfile)-3));
+	// Original
+	if (lpCmdLine[0] != 0)
+	{
+		char startupfile[MAX_PATH];
+		if (lpCmdLine[0] == '\"')
+		{
+			strncpy(startupfile, lpCmdLine + 1, strlen(lpCmdLine) - 2);
+			startupfile[strlen(lpCmdLine) - 2] = 0;
+		}
+		else
+			strcpy(startupfile, lpCmdLine);
+
+		DoFileOpen(hWnd, startupfile, startupfile + (strlen(startupfile) - 3));
 	}
- 
-    // Main message loop:
+
+	// Main message loop:
 	while (GetMessage(&msg, NULL, 0, 0)) 
 	{
 		if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg)) 
@@ -1212,12 +2152,12 @@ int APIENTRY _tWinMain (HINSTANCE hInstance,
 		}
 	}
 
+	#if defined _M_IX86
     FreeLibrary((HMODULE)DLL);
- 
+	#endif
+
 	return (int) msg.wParam;
 }
-
-
 
 //
 //  FUNCTION: MyRegisterClass()
@@ -1253,8 +2193,6 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
 	return RegisterClassEx(&wcex);
 }
 
-
-
 //
 //   FUNCTION: InitInstance(HANDLE, int)
 //
@@ -1267,28 +2205,42 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
 //
 BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
-   
+    hInst = hInstance; // Store instance handle in our global variable
 
-   hInst = hInstance; // Store instance handle in our global variable
+    // Get the vanishX and viewAngle of the screen
+    int screenWidth = GetSystemMetrics(SM_CXSCREEN);
+    int screenHeight = GetSystemMetrics(SM_CYSCREEN);
 
-   hWnd = CreateWindow(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
-      CW_USEDEFAULT, 0, 600, 400, NULL, NULL, hInstance, NULL);
+    // Get the vanishX and viewAngle of the window
+    int windowWidth = gAppResX;
+    int windowHeight = gAppResY;
 
-   if (!hWnd)
-   {
-      return FALSE;
-   }
+    // Calculate the x and y coordinates to center the window on the screen
+    int x = (screenWidth - windowWidth) / 2;
+    int y = (screenHeight - windowHeight) / 2;
 
-   ShowWindow(hWnd, nCmdShow);
+    // Create the window
+    hWnd = CreateWindow(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
+					   x, y, windowWidth, windowHeight, NULL, NULL, hInstance, NULL);
 
-   hfDefault = CreateFont(14, 0, 0, 0, FW_NORMAL, 0, 0, 0, ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, PROOF_QUALITY, VARIABLE_PITCH | FF_SWISS, "MS Sans Serif");
+    // If the window couldn't be created, return FALSE
+    if (!hWnd)
+    {
+        return FALSE;
+    }
 
-   UpdateWindow(hWnd);
+    // Show the window
+    ShowWindow(hWnd, nCmdShow);
 
-   return TRUE;
+    // Create a font to use for the window
+    hfDefault = CreateFont(16, 0, 0, 0, FW_NORMAL, TRUE, FALSE, FALSE, ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, PROOF_QUALITY, VARIABLE_PITCH | FF_SWISS, "Arial");
+
+
+    // Update the window
+    UpdateWindow(hWnd);
+
+    return TRUE;
 }
-
-
 
 void exit_proc(HWND hwnd)
 {
@@ -1318,7 +2270,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	int wmId, wmEvent;
 	PAINTSTRUCT ps;
-	HDC hdc;
+	//HDC hdc;
+
+	// Menu checks
+	HMENU menu = GetMenu(hWnd);
+	EnableMenuItem(menu, ID_SALVA, (datasaved == false) ? MF_ENABLED:MF_GRAYED);
 
 	switch (message) 
 	{
@@ -1375,14 +2331,19 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		case ID_ESPORTABMP:
 			DoFileExport(hWnd);
 			break;
-		case ID_PROPRIET:
+
+		case IDM_PROPERTIES:
+			DoModifyProperties(hWnd);
+			break;
+
+		case ID_INFO:
 			DoPropertyBox(hWnd);
 			break;
-   
-        case ID_CHANGEFRAMESIZE:
-             DoChangeFrameSize(hWnd);
-             break;
-             
+
+		case IDM_LINKPOINTS:
+			DoLinkPointDialog(hWnd);
+			break;
+                
 		case ID_PALETTE:
 			{
 				HMENU menu = GetMenu(hWnd);
@@ -1390,12 +2351,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				{
 				case MF_CHECKED:
 					CheckMenuItem(menu, ID_PALETTE, MF_UNCHECKED);
-					picX=0;
+					tableX=0;
 					break;
 
 				case MF_UNCHECKED:
 					CheckMenuItem(menu, ID_PALETTE, MF_CHECKED);
-					picX=190;
+					tableX=190;
 					break;
 				}
 				
@@ -1410,16 +2371,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			DoPaletteExport(hWnd);
 			break;
 		case ID_INGRANDIMENTO_NORMALE:
-			SetMagnify(1);
+			SetMagnify(gBaseMagnify);
 			break;
 		case ID_INGRANDIMENTO_X2:
-			SetMagnify(2);
+			SetMagnify(gBaseMagnify * 2);
 			break;
 		case ID_INGRANDIMENTO_X3:
-			SetMagnify(3);
+			SetMagnify(gBaseMagnify * 3);
 			break;
 		case ID_INGRANDIMENTO_X4:
-			SetMagnify(4);
+			SetMagnify(gBaseMagnify * 4);
 			break;
 		case ID_PRIORITYBARS:
 			{
@@ -1443,34 +2404,35 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			}
 		case ID_CICLOPRECEDENTE:
 			if (!isPicture)
-				ShowLoopCell(globalView->SelectedLoop()-1,0);
+				ShowLoopCell(curLoopIndex-1,0);
 			break;
 		case ID_CICLOSUCCESSIVO:
 			if (!isPicture)
-				ShowLoopCell(globalView->SelectedLoop()+1,0);
+				ShowLoopCell(curLoopIndex+1,0);
 			break;
 
 		case ID_CELLAPRECEDENTE:
 			if (isPicture)
-				ShowCell(globalPicture->SelectedCell()-1);
+				ShowCell(curCellIndex-1);
 			else
 			{
-				Loop **tloop = globalView->Loops()->getItem(globalView->SelectedLoop());
+				Loop *tloop = globalView->loops[curLoopIndex];
 				if (tloop)
 				{
-					ShowLoopCell(globalView->SelectedLoop(),(*tloop)->SelectedCell()-1);
+					ShowLoopCell(curLoopIndex, curCellIndex-1);
 				}
 			}
 			break;
 		case ID_CELLASUCCESSIVA:
 			if (isPicture)
-				ShowCell(globalPicture->SelectedCell()+1);
+				ShowCell(curCellIndex+1);
 			else
 			{
-				Loop **tloop = globalView->Loops()->getItem(globalView->SelectedLoop());
+	
+				Loop *tloop = globalView->loops[curLoopIndex];
 				if (tloop)
 				{
-					ShowLoopCell(globalView->SelectedLoop(),(*tloop)->SelectedCell()+1);
+					ShowLoopCell(curLoopIndex, curCellIndex+1);
 				}
 			}
 			break;
@@ -1484,7 +2446,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		break;
 	case WM_PAINT:
 		{
-		hdc = BeginPaint(hWnd, &ps);
+		HDC hdc = BeginPaint(hWnd, &ps);
 		SelectObject(hdc, hfDefault);
 		GetClientRect (hWnd, &rc);
 		SetBkMode(hdc, TRANSPARENT);
@@ -1492,205 +2454,483 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		long int twidth = rc.right-rc.left;
 		SetRect(&rc, 0, 0, twidth, 20);
 		FillRect(hdc, &rc, GetSysColorBrush(COLOR_BTNFACE));
-		
+
+		if (globalView)
+			picX = 220;
+
+		if (globalPicture)
+			picX = 0;
+
+		// palette will be drawn only if the image exists
+		if (tableX > 0)
+		{
+
+			HPEN redpen = CreatePen(PS_SOLID, 1, RGB(255, 0, 0));
+
+			HBRUSH tbrush;
+			Palette *tpalette = (isPicture ? globalPicture->palSCI : globalView->palSCI);
+			for (int i = 0; i < 16; i++)
+				for (int j = 0; j < 16; j++)
+				{
+					PalEntry *tentry = tpalette->GetPalEntry(i * 16 + j);
+
+					tbrush = CreateSolidBrush(RGB(tentry->red, tentry->green, tentry->blue));
+
+					SetRect(&rc, 10 + (j * 11), 30 + (i * 16), 20 + (j * 11), 40 + (i * 16));
+					FillRect(hdc, &rc, tbrush);
+					DeleteObject(tbrush);
+
+					if (tentry->remap == 1)
+					{
+						HPEN tpen = CreatePen(PS_SOLID, 1, RGB(255, 0, 0));
+						SelectObject(hdc, tpen);
+						MoveToEx(hdc, 10 + (j * 11), 41 + (i * 16), NULL);
+						LineTo(hdc, 20 + (j * 11), 41 + (i * 16));
+
+						MoveToEx(hdc, 10 + (j * 11), 40 + (i * 16), NULL);
+						LineTo(hdc, 20 + (j * 11), 40 + (i * 16));
+						SelectObject(hdc, GetStockObject(WHITE_PEN));
+						DeleteObject(tpen);
+						MoveToEx(hdc, 10 + (j * 11), 39 + (i * 16), NULL);
+						LineTo(hdc, 20 + (j * 11), 39 + (i * 16));
+						SelectObject(hdc, GetStockObject(BLACK_PEN));
+					}
+
+					if (((i * 16 + j) < tpalette->Head.startOffset) ||
+						((i * 16 + j) >= tpalette->Head.startOffset + tpalette->Head.nColors))
+					{
+						SelectObject(hdc, redpen);
+						MoveToEx(hdc, 9 + (j * 11), 29 + (i * 16), NULL);
+						LineTo(hdc, 21 + (j * 11), 41 + (i * 16));
+						MoveToEx(hdc, 9 + (j * 11), 40 + (i * 16), NULL);
+						LineTo(hdc, 21 + (j * 11), 28 + (i * 16));
+						SelectObject(hdc, GetStockObject(BLACK_PEN));
+					}
+				}
+
+			if (tpalette->palData)
+			{
+				tbrush = CreateSolidBrush(RGB(0, 255, 255));
+
+				SetRect(&rc, 20, 300, 30, 310);
+				FillRect(hdc, &rc, tbrush);
+				DeleteObject(tbrush);
+
+				SelectObject(hdc, redpen);
+				MoveToEx(hdc, 19, 299, NULL);
+				LineTo(hdc, 31, 311);
+				MoveToEx(hdc, 19, 310, NULL);
+				LineTo(hdc, 31, 298);
+				SelectObject(hdc, GetStockObject(BLACK_PEN));
+
+				SetRect(&rc, 40, 295, 190, 315);
+				DrawText(hdc, INTERFACE_MISSINGCOLORSSTR, -1, &rc, DT_SINGLELINE | DT_LEFT | DT_VCENTER);
+
+				if (!tpalette->Head.type)
+				{
+					SetRect(&rc, 20, 320, 30, 330);
+					FillRect(hdc, &rc, tbrush);
+					DeleteObject(tbrush);
+
+					SelectObject(hdc, redpen);
+					MoveToEx(hdc, 20, 332, NULL);
+					LineTo(hdc, 30, 332);
+					MoveToEx(hdc, 20, 331, NULL);
+					LineTo(hdc, 30, 331);
+
+					SelectObject(hdc, GetStockObject(WHITE_PEN));
+
+					MoveToEx(hdc, 20, 330, NULL);
+					LineTo(hdc, 30, 330);
+					SelectObject(hdc, GetStockObject(BLACK_PEN));
+
+					SetRect(&rc, 40, 316, 190, 336);
+					DrawText(hdc, INTERFACE_LOCKEDCOLORSSTR, -1, &rc, DT_SINGLELINE | DT_LEFT | DT_VCENTER);
+				}
+			}
+			else
+			{
+				SetRect(&rc, 30, 300, 190, 320);
+				DrawText(hdc, INTERFACE_MISSINGPALETTE, -1, &rc, DT_SINGLELINE | DT_LEFT | DT_VCENTER);
+			}
+
+			// SetRect(&rc, 20, 340, 440, 900);
+			// DoPropertyTable(hWnd);
+			// DrawText (hdc, INTERFACE_PROPTABLE, -1, &rc, DT_LEFT | DT_VCENTER);
+
+			DeleteObject(redpen);
+		}
+
+		if (gReferenceBM)
+		{
+			HBITMAP hbm = (HBITMAP)LoadImage(NULL, gReferenceBM, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
+
+			BITMAP bm;
+
+			GetObject(hbm, sizeof(BITMAP), &bm);
+
+			if (hbm)
+			{
+				HDC memdc = CreateCompatibleDC(hdc);
+				SelectObject(memdc, hbm);
+
+				TransparentBlt(hdc, 10 + picX + tableX + gReferenceX, 30 + picY + gReferenceY, bm.bmWidth, bm.bmHeight, memdc, 0, 0, bm.bmWidth, bm.bmHeight, RGB(skipColor.rgbRed, skipColor.rgbGreen, skipColor.rgbBlue));
+				// BitBlt(hdc, 10 + picX + tableX, 30 + picY, 640, 480, memdc, 0, 0, SRCCOPY);
+				//  SetDIBitsToDevice(hdc, 10 + picX + tableX + xPos, 30 + picY + yPos, bmWidth, -bmHeight, 0, 0, 0, -bmHeight, bmImage, bmImageHeader, DIB_RGB_COLORS);
+			}
+		}
+
+		if (globalView && !(*curLoop)->Head.flags)
+		{
+			if ((*curCell)->cellImage->image != (*curCell)->bmImage)
+			{
+				delete (*curCell)->bmImage;
+
+				if ((*curCell)->bmInfo)
+					delete (*curCell)->bmInfo;
+
+				(*curCell)->bmInfo = 0;
+				(*curCell)->bmImage = 0;
+			}
+
+			if (!(*curCell)->bmInfo || !(*curCell)->bmImage)
+				(*curCell)->GetImage(&(*curCell)->bmInfo, &(*curCell)->bmImage);
+
+			CelHeaderView *bCell = new CelHeaderView;
+			bCell = (CelHeaderView*)&(*curCell)->Head;
+
+			skipColor = (*curCell)->bmInfo->bmiColors[bCell->skip];
+
+			int xPos = bCell->xHot;
+			int yPos = bCell->yHot;
+
+			int bmWidth = (*curCell)->bmInfo->bmiHeader.biWidth;
+			int bmHeight = (*curCell)->bmInfo->bmiHeader.biHeight;
+
+			HBITMAP hbm = CreateCompatibleBitmap(hdc, bmWidth, -bmHeight);
+
+			HDC memdc = CreateCompatibleDC(hdc);
+			SelectObject(memdc, hbm);
+			SetDIBitsToDevice(memdc, 0, 0, bmWidth, -bmHeight, 0, 0, 0, -bmHeight,
+							  (*curCell)->bmImage, (*curCell)->bmInfo, DIB_RGB_COLORS);
+
+			TransparentBlt(hdc, 10 + picX + tableX, 30 + picY, (bmWidth * MagnifyFactor) / 100, (-bmHeight * MagnifyFactor) / 100, memdc, 0, 0, bmWidth, -bmHeight, RGB(skipColor.rgbRed, skipColor.rgbGreen, skipColor.rgbBlue));
+
+			DeleteDC(memdc);
+
+			// draw link points
+			if (bCell->linkTableCount >= 1)
+			{
+				// Create a pen with a thickness of 6 * MagnifyFactor / 100 if there is only one link
+				// or a thickness of 2 * MagnifyFactor / 100 if there are multiple links
+				int pointSize = (4 * MagnifyFactor) / 100;
+				int dottedSize = 1;
+
+				// Calculate the x and y coordinates for the last link point
+				int linkX = ((*curCell)->linkPoints[bCell->linkTableCount - 1].x * MagnifyFactor) / 100;
+				int linkY = ((*curCell)->linkPoints[bCell->linkTableCount - 1].y * MagnifyFactor) / 100;
+
+				HPEN dottedPen = CreatePen(PS_DOT, dottedSize, RGB(255, 0, 0));
+				;
+				HPEN solidPointPen = CreatePen(PS_SOLID, pointSize, RGB(255, 0, 0));
+				HPEN accentPen = CreatePen(PS_SOLID, pointSize + 2, RGB(255, 255, 255));
+
+				// Select the accent pen for drawing and draw a point at the position of the last link point
+				SelectObject(hdc, accentPen);
+				MoveToEx(hdc, 10 + picX + tableX + linkX, 30 + picY + linkY, NULL);
+				LineTo(hdc, 10 + picX + tableX + linkX, 30 + picY + linkY);
+
+				// Select the solid pen for drawing and draw a point at the position of the last link point
+				SelectObject(hdc, solidPointPen);
+				MoveToEx(hdc, 10 + picX + tableX + linkX, 30 + picY + linkY, NULL);
+				LineTo(hdc, 10 + picX + tableX + linkX, 30 + picY + linkY);
+
+				// Select the dotted pen for drawing
+				SelectObject(hdc, dottedPen);
+
+				// Iterate through all the link points and draw lines between them
+				for (int i = 0; i < bCell->linkTableCount; i++)
+				{
+					CelHeaderView *tCell = new CelHeaderView;
+					bCell = (CelHeaderView*)&globalView->loops[curLoopIndex]->cells[curCellIndex]->Head;
+
+					// Calculate the x and y shift values for the current cell
+					xPos = tCell->xHot;
+					yPos = tCell->yHot;
+
+					// Calculate the x and y coordinates for the current link point
+					linkX = ((*curCell)->linkPoints[i].x * MagnifyFactor) / 100;
+					linkY = ((*curCell)->linkPoints[i].y * MagnifyFactor) / 100;
+
+					// Calculate the position of the current link point
+					int linkPosX = 10 + picX + tableX + linkX;
+					int linkPosY = 30 + picY + linkY;
+
+					// Calculate the color of the pen for the current link point
+					int colorStep = 255 / bCell->linkTableCount;
+					int colorRed = 255 - (colorStep * i);
+					int colorBlue = (colorStep * i);
+
+					// Create a dotted pen with the calculated color and size
+					HPEN dottedPen = CreatePen(PS_DOT, dottedSize, RGB(colorRed, 0, colorBlue));
+
+					// Select the dotted pen for drawing
+					SelectObject(hdc, dottedPen);
+
+					// Draw a dotted line from the previous link point to the current one
+					LineTo(hdc, linkPosX, linkPosY);
+
+					// Select the accent pen for drawing and draw a point at the position of the last link point
+					SelectObject(hdc, accentPen);
+					MoveToEx(hdc, 10 + picX + tableX + linkX, 30 + picY + linkY, NULL);
+					LineTo(hdc, 10 + picX + tableX + linkX, 30 + picY + linkY);
+
+					// Create a solid point pen with the calculated color and size
+					HPEN solidPointPen = CreatePen(PS_SOLID, pointSize, RGB(colorRed, 0, colorBlue));
+
+					// Select the solid point pen for drawing
+					SelectObject(hdc, solidPointPen);
+
+					// Draw a solid point at the current link point
+					MoveToEx(hdc, linkPosX, linkPosY, NULL);
+					LineTo(hdc, linkPosX, linkPosY);
+				}
+			}
+		}
+
+		if (globalPicture)
+		{
+			if ((*curCell)->cellImage->image != (*curCell)->bmImage)
+			{
+				delete (*curCell)->bmImage;
+
+				if ((*curCell)->bmInfo)
+					delete (*curCell)->bmInfo;
+
+				(*curCell)->bmInfo = 0;
+				(*curCell)->bmImage = 0;
+			}
+
+			if (!(*curCell)->bmInfo || !(*curCell)->bmImage)
+				(*curCell)->GetImage(&(*curCell)->bmInfo, &(*curCell)->bmImage);
+
+			int xPos = 0;
+			int yPos = 0;
+
+			CelHeaderPic *bCell = new CelHeaderPic;
+			bCell = (CelHeaderPic*)&(*curCell)->Head;
+
+			skipColor = (*curCell)->bmInfo->bmiColors[bCell->skip];
+
+			if (gPosCells == 1)
+			{
+				xPos = bCell->xpos * MagnifyFactor / 100;
+				yPos = bCell->ypos * MagnifyFactor / 100;
+			}
+
+			int zDepth = bCell->priority;
+
+			int bmWidth = (*curCell)->bmInfo->bmiHeader.biWidth;
+			int bmHeight = (*curCell)->bmInfo->bmiHeader.biHeight;
+
+			HBITMAP hbm = CreateCompatibleBitmap(hdc, bmWidth, -bmHeight);
+			HDC memdc = CreateCompatibleDC(hdc);
+			SelectObject(memdc, hbm);
+			SetDIBitsToDevice(memdc, 0, 0, bmWidth, -bmHeight, 0, 0, 0, -bmHeight, (*curCell)->bmImage, (*curCell)->bmInfo, DIB_RGB_COLORS);
+
+			TransparentBlt(hdc, 10 + picX + tableX + xPos, 30 + picY + yPos, (bmWidth * MagnifyFactor) / 100, (-bmHeight * MagnifyFactor) / 100, memdc, 0, 0, bmWidth, -bmHeight, RGB(skipColor.rgbRed, skipColor.rgbGreen, skipColor.rgbBlue));
+			DeleteDC(memdc);
+
+			// draw all cells
+			if (curCellIndex == 0)
+				for (int i = 1; i < globalPicture->CellsCount(); i++)
+				{
+
+					if (globalPicture->cells[i]->cellImage->image != globalPicture->cells[i]->bmImage)
+					{
+						delete globalPicture->cells[i]->bmImage;
+
+						if (globalPicture->cells[i]->bmInfo)
+							delete globalPicture->cells[i]->bmInfo;
+
+						globalPicture->cells[i]->bmInfo = 0;
+						globalPicture->cells[i]->bmImage = 0;
+					}
+
+					if (!globalPicture->cells[i]->bmInfo || !globalPicture->cells[i]->bmImage)
+						globalPicture->cells[i]->GetImage(&globalPicture->cells[i]->bmInfo, &globalPicture->cells[i]->bmImage);
+
+					if (globalPicture->cells[i]->bmInfo)
+					{
+						CelHeaderPic *bCell = new CelHeaderPic;
+						bCell = (CelHeaderPic*)&globalPicture->cells[i]->Head;
+
+						xPos = (bCell->xpos * MagnifyFactor) / 100;
+						yPos = (bCell->ypos * MagnifyFactor) / 100;
+						zDepth = (bCell->priority * MagnifyFactor) / 100;
+
+						bmWidth = globalPicture->cells[i]->bmInfo->bmiHeader.biWidth;
+						bmHeight = globalPicture->cells[i]->bmInfo->bmiHeader.biHeight;
+
+						hbm = CreateCompatibleBitmap(hdc, bmWidth, -bmHeight);
+						memdc = CreateCompatibleDC(hdc);
+						SelectObject(memdc, hbm);
+
+						SetDIBitsToDevice(memdc, 0, 0, bmWidth, -bmHeight, 0, 0, 0, -bmHeight,
+										  globalPicture->cells[i]->bmImage, globalPicture->cells[i]->bmInfo, DIB_RGB_COLORS);
+
+						TransparentBlt(hdc, 10 + picX + tableX + xPos, 30 + picY + yPos, (bmWidth * MagnifyFactor) / 100, (-bmHeight * MagnifyFactor) / 100, memdc, 0, 0, bmWidth, -bmHeight, RGB(skipColor.rgbRed, skipColor.rgbGreen, skipColor.rgbBlue));
+
+						DeleteDC(memdc);
+					}
+				}
+			//
+
+			if (showpbars)
+			{
+				if (globalPicture->format == _PIC_11)
+				{
+					for (int i = 0; i < 14; i++)
+					{
+						CelBase *bCell = new CelBase;
+						bCell = (CelBase *)&globalPicture->cells[curCellIndex]->Head;
+
+						MoveToEx(hdc, 5 + picX + tableX, 30 + picY + (globalPicture->Head.pic11.priLines[i] * MagnifyFactor) / 100, NULL);
+						LineTo(hdc, 15 + picX + tableX + (bCell->xDim * MagnifyFactor) / 100, 30 + picY + (globalPicture->Head.pic11.priLines[i] * MagnifyFactor) / 100);
+					}
+				}
+
+				if (!globalPicture->format == _PIC_11)
+				{
+					// Create a red pen with a thickness of 2 * MagnifyFactor / 100
+					HPEN redpen = CreatePen(PS_SOLID, (2 * MagnifyFactor) / 100, RGB(255, 0, 0));
+
+					// Select the red pen for drawing
+					SelectObject(hdc, redpen);
+
+					for (int i = 1; i < globalPicture->CellsCount(); i++)
+					{
+						CelHeaderPic *bCell = new CelHeaderPic;
+						bCell = (CelHeaderPic *)&globalPicture->cells[i]->Head;
+
+						xPos = bCell->xpos;
+						yPos = bCell->ypos;
+						bmWidth = globalPicture->cells[i]->bmInfo->bmiHeader.biWidth;
+						bmHeight = globalPicture->cells[i]->bmInfo->bmiHeader.biHeight;
+						int zOffset = bCell->ypos + bmHeight - (bCell->priority * zScale) / 100;
+						zDepth = yPos + bmHeight - zOffset;
+						if (curCellIndex == i || curCellIndex == 0)
+						{
+							MoveToEx(hdc, 5 + picX + tableX + (xPos * MagnifyFactor) / 100, 30 + picY + (zDepth * MagnifyFactor) / 100, NULL);
+							LineTo(hdc, 15 + picX + tableX + (xPos * MagnifyFactor) / 100 + (bCell->xDim * MagnifyFactor) / 100, 30 + picY + (zDepth * MagnifyFactor) / 100);
+						}
+					}
+				}
+			}
+		}
+
+		// draw cell info
 		if (curCell)
+		{
+
+			CelBase *bCell = new CelBase;
+			bCell = (CelBase*)&(*curCell)->Head;
+
+			if (globalView)
 			{
 				char finalstr[64];
-				sprintf(finalstr, INTERFACE_SKIPCOLORSTR, (*curCell)->SkipColor());
-				SetRect(&rc, 250, 0, 390, 20);
-				DrawText (hdc, finalstr, -1, &rc, DT_SINGLELINE | DT_LEFT | DT_VCENTER);
-				//or TextOut(hdc, 230,0, finalstr,strlen(finalstr));
-				if (curShownImageHeader)
+				sprintf(finalstr, INTERFACE_LOOPSSTR, curLoopIndex + 1, globalView->Head.view32.loopCount);
+				SetRect(&rc, 25, 0, 125, 20);
+				DrawText(hdc, finalstr, -1, &rc, DT_SINGLELINE | DT_LEFT | DT_VCENTER);
+
+				if (curLoop)
 				{
-					RGBQUAD tquad = curShownImageHeader->bmiColors[(*curCell)->SkipColor()];
-					HBRUSH tbrush =CreateSolidBrush(RGB(tquad.rgbRed,tquad.rgbGreen,tquad.rgbBlue));
+					if ((*curLoop)->Head.flags)
+					{
+						char mirr[64];
+						sprintf(mirr, INTERFACE_MIRROREDSTR, (*curLoop)->Head.altLoop + 1);
+						SetRect(&rc, 125, 0, 325, 20);
+						DrawText(hdc, mirr, -1, &rc, DT_SINGLELINE | DT_LEFT | DT_VCENTER);
+					}
+					else
+					{
+						sprintf(finalstr, INTERFACE_CELLSSTR, curCellIndex + 1, (*curLoop)->Head.numCels);
+						SetRect(&rc, 125, 0, 225, 20);
+						DrawText(hdc, finalstr, -1, &rc, DT_SINGLELINE | DT_LEFT | DT_VCENTER);
+					}
+				}
+
+				if (!(*curLoop)->Head.flags)
+				{
+
+					char finalstr[64];
+					sprintf(finalstr, INTERFACE_SKIPCOLORSTR, bCell->skip);
+					SetRect(&rc, 250, 0, 390, 20);
+					DrawText(hdc, finalstr, -1, &rc, DT_SINGLELINE | DT_LEFT | DT_VCENTER);
+					// or TextOut(hdc, 230,0, finalstr,strlen(finalstr));
+
+					if ((*curCell)->bmInfo)
+					{
+						HPEN outline = CreatePen(PS_SOLID, 1, RGB(0, 0, 0));
+						SelectObject(hdc, outline);
+
+						RGBQUAD tquad = (*curCell)->bmInfo->bmiColors[bCell->skip];
+						HBRUSH tbrush = CreateSolidBrush(RGB(tquad.rgbRed, tquad.rgbGreen, tquad.rgbBlue));
+						SelectBrush(hdc, tbrush);
+						Rectangle(hdc, 225, 2, 245, 18);
+
+						DeleteObject(tbrush);
+					}
+
+					if ((*curCell)->changed)
+					{
+						SetTextColor(hdc, RGB(255, 0, 0));
+						SetRect(&rc, 480, 0, 530, 20);
+						DrawText(hdc, INTERFACE_CHANGEDSTR, -1, &rc, DT_SINGLELINE | DT_LEFT | DT_VCENTER);
+						SetTextColor(hdc, RGB(0, 0, 0));
+					}
+				}
+			}
+
+			if (globalPicture)
+			{
+				// Draw transparency info
+				char finalstr[64];
+				sprintf(finalstr, INTERFACE_SKIPCOLORSTR, bCell->skip);
+				SetRect(&rc, 250, 0, 390, 20);
+				DrawText(hdc, finalstr, -1, &rc, DT_SINGLELINE | DT_LEFT | DT_VCENTER);
+				// or TextOut(hdc, 230,0, finalstr,strlen(finalstr));
+				if ((*curCell)->bmInfo)
+				{
+					RGBQUAD tquad = (*curCell)->bmInfo->bmiColors[bCell->skip];
+					HBRUSH tbrush = CreateSolidBrush(RGB(tquad.rgbRed, tquad.rgbGreen, tquad.rgbBlue));
 					SelectBrush(hdc, tbrush);
-					Rectangle(hdc, 225,2,245,18);
+					Rectangle(hdc, 225, 2, 245, 18);
 
 					DeleteObject(tbrush);
 				}
-				if ((*curCell)->Changed())
+
+				// Draw version info
+				char vers[10];
+				strcpy(vers, (globalPicture->format == _PIC_11 ? "SCI1.1" : "SCI32"));
+				SetRect(&rc, 25, 0, 100, 20);
+				DrawText(hdc, vers, -1, &rc, DT_SINGLELINE | DT_LEFT | DT_VCENTER);
+
+				// char finalstr[64];
+				sprintf(finalstr, INTERFACE_CELLSSTR, curCellIndex + 1, globalPicture->CellsCount());
+				SetRect(&rc, 125, 0, 250, 20);
+				DrawText(hdc, finalstr, -1, &rc, DT_SINGLELINE | DT_LEFT | DT_VCENTER);
+
+				if ((*curCell)->changed)
 				{
-					SetTextColor(hdc, RGB(255,0,0));
+					SetTextColor(hdc, RGB(255, 0, 0));
 					SetRect(&rc, 480, 0, 530, 20);
-					DrawText (hdc, INTERFACE_CHANGEDSTR, -1, &rc, DT_SINGLELINE | DT_LEFT | DT_VCENTER);
-					SetTextColor(hdc, RGB(0,0,0));
-				}
-			}
-
-		if ((isPicture) && (globalPicture!=0))
-		{
-			char vers[10];
-			strcpy(vers, (globalPicture->IsOldFormat() ?"SCI1.1":"SCI32"));
-            SetRect(&rc, 25, 0, 100, 20);   
-            DrawText (hdc, vers, -1, &rc, DT_SINGLELINE | DT_LEFT | DT_VCENTER);
-
-			char finalstr[64];
-			sprintf(finalstr, INTERFACE_CELLSSTR, globalPicture->SelectedCell() +1, globalPicture->CellsCount());
-			SetRect(&rc, 125, 0, 250, 20);    
-            DrawText (hdc, finalstr, -1, &rc, DT_SINGLELINE | DT_LEFT | DT_VCENTER);
-
-		}
-
-		if ((!isPicture) && (globalView!=0))
-		{
-			char finalstr[64];
-			sprintf(finalstr, INTERFACE_LOOPSSTR, globalView->SelectedLoop() +1, globalView->LoopsCount());
-            SetRect(&rc, 25, 0, 125, 20);    
-            DrawText (hdc, finalstr, -1, &rc, DT_SINGLELINE | DT_LEFT | DT_VCENTER);
-
-			
-
-			Loop **tloop =globalView->Loops()->getItem(globalView->SelectedLoop());
-			if (tloop)
-			{
-				if ((*tloop)->Mirrored())
-				{
-					char mirr[64];
-					sprintf(mirr, INTERFACE_MIRROREDSTR, (*tloop)->BasedOn() +1);
-					SetRect(&rc, 125, 0, 325, 20);
-					DrawText (hdc, mirr, -1, &rc, DT_SINGLELINE | DT_LEFT | DT_VCENTER);
-
-				}
-				else
-				{
-					sprintf(finalstr, INTERFACE_CELLSSTR, (*tloop)->SelectedCell() +1, (*tloop)->CellsCount());
-					SetRect(&rc, 125, 0, 225, 20);    
-					DrawText (hdc, finalstr, -1, &rc, DT_SINGLELINE | DT_LEFT | DT_VCENTER);
-				}
-			}
-            
-            if (globalView->HasLinks())
-            {
-               sprintf(finalstr, "LINKS");
-               SetRect(&rc, 400, 0, 450, 20);    
-			   DrawText (hdc, finalstr, -1, &rc, DT_SINGLELINE | DT_LEFT | DT_VCENTER);
-            }
-			
-			
-		}
-
-		if (curShownImage)
-		{	
-			//palette will be drawn only if the image exists
-			if (picX>0)
-			{
-                HPEN redpen = CreatePen(PS_SOLID, 1, RGB(255,0,0));
-			           
-				HBRUSH tbrush;
-				Palette *tpalette=(isPicture?globalPicture->PalSCI():globalView->PalSCI());
-				for (int i=0; i<16; i++)
-					for (int j=0; j<16; j++)
-					{
-						PalEntry *tentry=tpalette->GetPalEntry(i*16 +j);
-						
-					
-						tbrush=CreateSolidBrush(RGB(tentry->red, tentry->green, tentry->blue));
-
-						SetRect(&rc, 10+(j*11), 30+(i*16), 20+(j*11), 40+(i*16));
-						FillRect(hdc, &rc, tbrush);
-						DeleteObject(tbrush);
-
-
-						if (tentry->remap==1)
-						{
-							HPEN tpen = CreatePen(PS_SOLID, 1, RGB(255,0,0));
-							SelectObject(hdc, tpen);
-							MoveToEx(hdc, 10+(j*11), 41+(i*16), NULL);
-							LineTo(hdc, 20+(j*11), 41+(i*16));
-
-							MoveToEx(hdc, 10+(j*11), 40+(i*16), NULL);
-							LineTo(hdc, 20+(j*11), 40+(i*16));
-							SelectObject(hdc, GetStockObject(WHITE_PEN));
-							DeleteObject(tpen);
-							MoveToEx(hdc, 10+(j*11), 39+(i*16), NULL);
-							LineTo(hdc, 20+(j*11), 39+(i*16));
-							SelectObject(hdc, GetStockObject(BLACK_PEN));
-
-						}
-
-						if (((i*16 +j) < tpalette->FirstColor())
-									||
-							((i*16 +j) >= tpalette->FirstColor()+tpalette->NumColors()))
-						{
-                            SelectObject(hdc, redpen);
-							MoveToEx(hdc, 9+(j*11), 29+(i*16), NULL);
-							LineTo(hdc, 21+(j*11), 41+(i*16));
-							MoveToEx(hdc, 9+(j*11), 40+(i*16), NULL);
-							LineTo(hdc, 21+(j*11), 28+(i*16));
-                            SelectObject(hdc, GetStockObject(BLACK_PEN));
-						}
-
-					}
-                
-			    if (tpalette->HasPalette())
-                {
-                    tbrush=CreateSolidBrush(RGB(0,255,255));
-
-                    SetRect(&rc, 20, 300, 30, 310);
-				    FillRect(hdc, &rc, tbrush);
-				    DeleteObject(tbrush);
-
-                    SelectObject(hdc, redpen);
-				    MoveToEx(hdc, 19,299, NULL);
-				    LineTo(hdc, 31, 311);
-				    MoveToEx(hdc, 19, 310, NULL);
-				    LineTo(hdc, 31, 298);
-                    SelectObject(hdc, GetStockObject(BLACK_PEN));
-                
-				    SetRect(&rc, 40, 295, 190, 315);    
-				    DrawText (hdc, INTERFACE_MISSINGCOLORSSTR, -1, &rc, DT_SINGLELINE | DT_LEFT | DT_VCENTER);
-
-                    if (tpalette->HasFourEntries())
-   				    {
-					    SetRect(&rc, 20, 320, 30, 330);
-					    FillRect(hdc, &rc, tbrush);
-					    DeleteObject(tbrush);
-
-					    SelectObject(hdc, redpen);
-					    MoveToEx(hdc, 20, 332, NULL);
-					    LineTo(hdc, 30, 332);										
-					    MoveToEx(hdc, 20, 331, NULL);
-					    LineTo(hdc, 30, 331);
-
-					    SelectObject(hdc, GetStockObject(WHITE_PEN));
-					
-					    MoveToEx(hdc, 20, 330, NULL);
-					    LineTo(hdc, 30, 330);
-					    SelectObject(hdc, GetStockObject(BLACK_PEN));
-
-					    SetRect(&rc, 40, 316, 190, 336);    
-					    DrawText (hdc, INTERFACE_LOCKEDCOLORSSTR, -1, &rc, DT_SINGLELINE | DT_LEFT | DT_VCENTER);
-
-				    }             
-                }
-                else
-                {
-                    SetRect(&rc, 30, 300, 190, 320);    
-				    DrawText (hdc, INTERFACE_MISSINGPALETTE, -1, &rc, DT_SINGLELINE | DT_LEFT | DT_VCENTER);
-                }
-
-				
-                DeleteObject(redpen);
-			}
-
-			if (MagnifyFactor>1)
-				StretchDIBits(hdc,10+picX,30,curShownImageHeader->bmiHeader.biWidth*MagnifyFactor,-curShownImageHeader->bmiHeader.biHeight*MagnifyFactor,0,0,curShownImageHeader->bmiHeader.biWidth,-curShownImageHeader->bmiHeader.biHeight,curShownImage,curShownImageHeader,DIB_RGB_COLORS,SRCCOPY);
-			else
-				SetDIBitsToDevice(hdc,10+picX,30,curShownImageHeader->bmiHeader.biWidth,-curShownImageHeader->bmiHeader.biHeight,0,0,0,-curShownImageHeader->bmiHeader.biHeight,curShownImage,curShownImageHeader,DIB_RGB_COLORS);
-			if (isPicture && showpbars)
-			{
-				if (globalPicture->IsOldFormat())
-				{
-					for (int i=0;i<14;i++)
-					{
-						MoveToEx(hdc, 5+picX, 30+globalPicture->GetPriBar(i)*MagnifyFactor, NULL);
-						LineTo(hdc, 15+picX+(*curCell)->Width()*MagnifyFactor, 30+globalPicture->GetPriBar(i)*MagnifyFactor);
-					}
-
+					DrawText(hdc, INTERFACE_CHANGEDSTR, -1, &rc, DT_SINGLELINE | DT_LEFT | DT_VCENTER);
+					SetTextColor(hdc, RGB(0, 0, 0));
 				}
 			}
 		}
+
 		EndPaint(hWnd, &ps);
 		break;
 		}
@@ -1725,5 +2965,3 @@ LRESULT CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 	}
 	return FALSE;
 }
-
-

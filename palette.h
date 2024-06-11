@@ -1,5 +1,6 @@
 /*	FotoSCIhop - Sierra SCI1.1/SCI32 games translator
  *  Copyright (C) Enrico Rolfi 'Endroz', 2004-2021.
+ *  Copyright (C) Daniel Arnold 'Dhel', 2022-2024.
  *
  *  This class represents a SCI palette
  *
@@ -27,76 +28,84 @@ struct PalEntry
 };
 #define PalEntrySIZE (sizeof(PalEntry))
 
+struct BMPColorHead
+{
+	unsigned char red;
+	unsigned char green;
+	unsigned char blue;
+	unsigned char alpha;
+	unsigned char color_space_type;
+	unsigned char unused;
+};
+#define BMPColorHeadSize (sizeof(BMPColorHead))
+
 struct PalHeader
 {
-	short palID; //0x000E or 0x900E are constant values?
-    char unkBytes1[11];    //the first 8 bytes seems to contain palette name sometimes
-    short dataLength;  //Size of remaining data (from unkbytes2 to end of palet)
-    char unkBytes2[10];
-    short firstColor;  //Starting entry
-    short unkShort;
-    short numColors;   //Number of entries in palette
-    char  exfourColor;
-    char  tripleColor; //Triad entries instead quad
-    long  unkLong;
-
+	short palID;
+	char hdSize;
+	char palName[9];
+	char palCount;
+	short reserved;
 };
-#define PalHeaderSIZE (sizeof(PalHeader))
+
+const int PALHEADERSIZE = sizeof(PalHeader);
+
+struct CompPal : public PalHeader
+{
+	char title[10]; //  8 chars, 0 terminated
+	uchar startOffset;
+	uchar nCycles;	//  number of cycling ranges following header
+	UInt16 fe;		//  future expansion (0)
+	UInt16 nColors; //  number of "colors" defined in this palette
+	uchar def;		//  "Default" flag setting (1)
+	uchar type;		//  (0 = each RGB has flag)
+					//  (1 = All RGBs share default flag)
+	UInt32 valid;
+};
+
+const int COMPPALSIZE = sizeof(CompPal);
+
+#define PALPATCH80    0x008B
+#define PALPATCH      0x000B
+
+
+#define PALETTE_POS 0x0300
 
 #pragma pack()
 
-
-
 class Palette
 {
-	short _palID;
-	short _firstColor;
-	short _numColors;
 	
-	bool _hasFourEntries;
-	char _exfourColor;
-
-	PalEntry _palData[256];
-
-	char _unkBytes1[11];
-	char _unkBytes2[10];
-	short _unkShort;
-	long  _unkLong;
- 
-    bool _hasPalette;
-
 public:
-	Palette(void) : _firstColor(0), _numColors(0), _hasPalette(false) 
+	Palette(void)
 	{ for (int i = 0; i<256; i++)
 	  {
           if (i>224)
           {
-		      _palData[i].blue = i;//255;
-		      _palData[i].green = i;//255;
+		      palData[i].blue = i;//255;
+		      palData[i].green = i;//255;
 		  
           } else {
-              _palData[i].blue = 224;
-		      _palData[i].green = 224;
+              palData[i].blue = 224;
+		      palData[i].green = 224;
           }
           
-          _palData[i].red = 0;	//red=255  green=0  => violet
-		  _palData[i].remap = 0;
+          palData[i].red = 0;	//red=255  green=0  => violet
+		  palData[i].remap = 0;
 	  }
-    /*  _palData[255].blue = 0;// 255;
-	  _palData[255].green = 255;
-	  _palData[255].red =255;//red=255  green=0  => violet
-	  _palData[255].remap = 0;    */
+    /*  palData[255].blue = 0;// 255;
+	  palData[255].green = 255;
+	  palData[255].red =255;//red=255  green=0  => violet
+	  palData[255].remap = 0;    */
 
 	}
 	//~Palette(void);
 
-	unsigned short FirstColor() const { return _firstColor; }
-	void FirstColor(unsigned short value) { _firstColor = value; }
-	unsigned short NumColors() const { return _numColors; }
-	void NumColors(unsigned short value) { _numColors = value; }
+	PalEntry palData[256];
 
-	bool HasFourEntries() const { return _hasFourEntries; }
-	void HasFourEntries(bool value) { _hasFourEntries = value; }
+    //bool _hasPalette;
+
+	CompPal Head;
 	
 	PalEntry *GetPalEntry(unsigned short which);
 	bool SetPalEntry(PalEntry value, unsigned short which);
@@ -105,15 +114,13 @@ public:
     void noPalette() { 
                        for (int i = 0; i<256; i++)
 	                   {
-		                    _palData[i].blue = 255-i;
-		                    _palData[i].green = 255-i;
-		                    _palData[i].red = 255-i;	
-		                    _palData[i].remap = 0;
+		                    palData[i].blue = 255-i;
+		                    palData[i].green = 255-i;
+		                    palData[i].red = 255-i;	
+		                    palData[i].remap = 0;
 	                   }
-                       _hasPalette = false;
+                       //_hasPalette = false;
                      }
-    bool HasPalette() const { return _hasPalette; }
-	
 
 	void WritePalette(FILE *cfb, bool writesciheader);
 

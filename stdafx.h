@@ -24,4 +24,13 @@
 #include <Commdlg.h>
 
 static HWND hWnd;
+
+//	data types for external data (files or OS data structures)
+//	each contain the number of bits indicated
+typedef short			Int16;
+typedef unsigned short	UInt16;
+typedef int				Int32;
+typedef unsigned int	UInt32;
+typedef unsigned char	uchar;
+
 #endif

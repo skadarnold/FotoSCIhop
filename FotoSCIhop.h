@@ -1,5 +1,6 @@
 /*	FotoSCIhop - Sierra SCI1.1/SCI32 games translator
  *  Copyright (C) Enrico Rolfi 'Endroz', 2004-2021.
+ *  Copyright (C) Daniel Arnold 'Dhel', 2022-2024.
  *
  *  global stuff
  *
@@ -17,16 +18,53 @@
 #include "p56files.h"
 #include "v56files.h"
 
+#include "english.h"
+#define MAX_ARG 512
+char *argv[MAX_ARG];
+char propstr[10240]="";
+char gAppPath[MAX_PATH];
+
+
+// Dialog
+HWND hPropertiesDialog;
+HWND hLinkPointDialog;
+void DoUpdatePropertiesProc(HWND hwndDlg);
+
+
+void DoUpdateLinkPointProc(HWND hwndDlg);
+
+
+
+// ini
+int gAppResX = 600 * 2;
+int gAppResY = 400 * 2;
+int zScale = 200;
+int gPosCells = 0;
+int gCliMode = 0;
+int gBaseMagnify = 75;
+
+char gReferenceBM[_MAX_PATH] = "3.bmp";
+int gReferenceX = 0;
+int gReferenceY = 0;
+
+int gCliEnabled = 0;
+
+//BOOL DoImageConversion(char fileName[MAX_PATH], int cLimit, int tolerance);
+BOOL CLIPaletteImport(char *palette);
+int cliExport(char *name);
 
 P56file32 *globalPicture = NULL;
 V56file *globalView = NULL;
 bool isPicture=true;
 
-unsigned char *curShownImage = 0;
-BITMAPINFO *curShownImageHeader = 0; 
-Cell **curCell =0;
+RGBQUAD skipColor;
 
-int MagnifyFactor = 1;
+Cell **curCell =0;
+Loop **curLoop =0;
+int curCellIndex = 0;
+int curLoopIndex = 0;
+
+int MagnifyFactor = gBaseMagnify;
 bool showpbars = false;
 
 bool datasaved =true;
@@ -37,5 +75,18 @@ HWND hWndTopBar;
 HFONT hfDefault;
 
 int picX = 0;
+int picY = 30;
+int tableX = 0;
+
+// image import
+int colorLimit = 255;
+int tolerance = 50;
+
+BOOL CALLBACK DoImportImageDlg(HWND hwndDlg,
+                               UINT message,
+                               WPARAM wParam,
+                               LPARAM lParam
+                               );
+
 
 #endif
