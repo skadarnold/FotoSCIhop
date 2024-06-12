@@ -1,10 +1,13 @@
 # FotoSCIhop
-SCI32 Pic and View editor
+SCI32 / SCI1.1 Pic and View editor
 
 ## About
 FotoSCIhop is the only modern application that I have found which is capable of editing SCI32 compatible view and pic files. Over the several years I have been expanding and restructuring FotoSCIhop too allow additional editing other than it's original bitmap / palette importing. 
 
 This version of FotoSCIhop is in public beta testing status. While most things should be stable and working, there are many things that are not ready for mainstream use. There are few safe guards in place when modifying file properties which could break them. Use at your own risk. Over time I plan to improve these things as needed. 
+
+## Installation
+It is recommended that you download and install FotoSCIhop bundled through TraduSCI from here https://drive.google.com/file/d/1sf6rbpnvArRtQ0GmeKKGe-xbdP9FeVv6/view?usp=sharing. This will give you all of the additional content and documentation usually included with FotoSCIhop. Then replace FotoSCIhop.exe with your choice from the github release section. 
 
 ## Compiling
 Use Visual Studio and open immagina.sln. 
@@ -21,7 +24,7 @@ Use Visual Studio and open immagina.sln.
 Much of the original code has been redesigned at it's core to allow more flexibility and to better match the original structuring of SCI32 view and pic files. 
 
 ### Features I hope to add
-- Palette editting and shifting
+- Palette editing and shifting
 - Image conversion / color quantization when importing
 - Better cell / loop management (copy paste, new from base)
 - Better multi cell pic designer (drag and drop)
