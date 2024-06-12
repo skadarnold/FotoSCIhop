@@ -36,14 +36,14 @@ void DoUpdateLinkPointProc(HWND hwndDlg);
 
 
 // ini
-int gAppResX = 600 * 2;
-int gAppResY = 400 * 2;
-int zScale = 200;
+int gAppResX = 700;
+int gAppResY = 500;
+int zScale = 100;
 int gPosCells = 0;
 int gCliMode = 0;
-int gBaseMagnify = 75;
+int gBaseMagnify = 100;
 
-char gReferenceBM[_MAX_PATH] = "3.bmp";
+char gReferenceBM[_MAX_PATH] = "reference.bmp";
 int gReferenceX = 0;
 int gReferenceY = 0;
 
